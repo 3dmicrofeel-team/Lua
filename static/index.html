@@ -1,0 +1,671 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Lua AI 生成系统</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+            overflow: hidden;
+        }
+
+        .header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 30px;
+            text-align: center;
+        }
+
+        .header h1 {
+            font-size: 2.5em;
+            margin-bottom: 10px;
+        }
+
+        .header p {
+            opacity: 0.9;
+            font-size: 1.1em;
+        }
+
+        .tabs {
+            display: flex;
+            background: #f5f5f5;
+            border-bottom: 2px solid #ddd;
+        }
+
+        .tab {
+            flex: 1;
+            padding: 20px;
+            text-align: center;
+            cursor: pointer;
+            background: #f5f5f5;
+            border: none;
+            font-size: 1.1em;
+            font-weight: 600;
+            color: #666;
+            transition: all 0.3s;
+        }
+
+        .tab:hover {
+            background: #e8e8e8;
+        }
+
+        .tab.active {
+            background: white;
+            color: #667eea;
+            border-bottom: 3px solid #667eea;
+        }
+
+        .tab-content {
+            display: none;
+            padding: 30px;
+        }
+
+        .tab-content.active {
+            display: block;
+        }
+
+        .form-group {
+            margin-bottom: 25px;
+        }
+
+        .form-group label {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: 600;
+            color: #333;
+            font-size: 1em;
+        }
+
+        .form-group input,
+        .form-group select,
+        .form-group textarea {
+            width: 100%;
+            padding: 12px;
+            border: 2px solid #ddd;
+            border-radius: 8px;
+            font-size: 1em;
+            transition: border-color 0.3s;
+        }
+
+        .form-group input:focus,
+        .form-group select:focus,
+        .form-group textarea:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+
+        .form-group textarea {
+            min-height: 120px;
+            font-family: 'Courier New', monospace;
+            resize: vertical;
+        }
+
+        .btn {
+            padding: 14px 28px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            border-radius: 8px;
+            font-size: 1.1em;
+            font-weight: 600;
+            cursor: pointer;
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+
+        .btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(102, 126, 234, 0.4);
+        }
+
+        .btn:active {
+            transform: translateY(0);
+        }
+
+        .btn-secondary {
+            background: #6c757d;
+        }
+
+        .btn-secondary:hover {
+            background: #5a6268;
+            box-shadow: 0 5px 15px rgba(108, 117, 125, 0.4);
+        }
+
+        .loading {
+            display: none;
+            text-align: center;
+            padding: 40px;
+        }
+
+        .loading.active {
+            display: block;
+        }
+
+        .spinner {
+            border: 4px solid #f3f3f3;
+            border-top: 4px solid #667eea;
+            border-radius: 50%;
+            width: 50px;
+            height: 50px;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 20px;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        .results {
+            margin-top: 30px;
+        }
+
+        .result-section {
+            margin-bottom: 30px;
+            border: 2px solid #e0e0e0;
+            border-radius: 8px;
+            overflow: hidden;
+        }
+
+        .result-header {
+            background: #f8f9fa;
+            padding: 15px 20px;
+            font-weight: 600;
+            color: #333;
+            border-bottom: 2px solid #e0e0e0;
+            cursor: pointer;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .result-header:hover {
+            background: #e9ecef;
+        }
+
+        .result-content {
+            padding: 20px;
+            background: #fafafa;
+            display: none;
+            max-height: 500px;
+            overflow-y: auto;
+        }
+
+        .result-content.active {
+            display: block;
+        }
+
+        .result-content pre {
+            margin: 0;
+            padding: 15px;
+            background: #2d2d2d;
+            color: #f8f8f2;
+            border-radius: 6px;
+            overflow-x: auto;
+            font-family: 'Courier New', monospace;
+            font-size: 0.9em;
+            line-height: 1.5;
+        }
+
+        .result-content pre.json {
+            background: #1e1e1e;
+        }
+
+        .module-config {
+            margin-bottom: 30px;
+            border: 2px solid #e0e0e0;
+            border-radius: 8px;
+            padding: 20px;
+            background: #fafafa;
+        }
+
+        .module-config h3 {
+            margin-bottom: 15px;
+            color: #667eea;
+        }
+
+        .module-config .form-row {
+            display: grid;
+            grid-template-columns: 1fr 1fr 1fr 1fr;
+            gap: 15px;
+            margin-bottom: 15px;
+        }
+
+        .error {
+            background: #fee;
+            color: #c33;
+            padding: 15px;
+            border-radius: 8px;
+            margin-top: 20px;
+            border: 2px solid #fcc;
+        }
+
+        .success {
+            background: #efe;
+            color: #3c3;
+            padding: 15px;
+            border-radius: 8px;
+            margin-top: 20px;
+            border: 2px solid #cfc;
+        }
+
+        .two-column {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+        }
+
+        @media (max-width: 1200px) {
+            .module-config .form-row {
+                grid-template-columns: 1fr 1fr;
+            }
+        }
+        
+        @media (max-width: 768px) {
+            .two-column {
+                grid-template-columns: 1fr;
+            }
+            .module-config .form-row {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🎬 Lua AI 生成系统</h1>
+            <p>一句话生成完整的Lua游戏脚本</p>
+        </div>
+
+        <div class="tabs">
+            <button class="tab active" onclick="switchTab('generate')">生成Lua</button>
+            <button class="tab" onclick="switchTab('config')">API配置</button>
+            <button class="tab" onclick="switchTab('prompts')">Prompt配置</button>
+        </div>
+
+        <!-- 生成Lua标签页 -->
+        <div id="generate" class="tab-content active">
+            <div class="form-group">
+                <label for="userInput">输入你的游戏想法（一句话）：</label>
+                <textarea id="userInput" placeholder="例如：玩家需要在一个废弃的工厂中找到钥匙，打开大门逃离，但要小心巡逻的机器人守卫..."></textarea>
+            </div>
+            <button class="btn" onclick="generateLua()">🚀 生成Lua代码</button>
+
+            <div class="loading" id="loading">
+                <div class="spinner"></div>
+                <p>正在生成中，请稍候...</p>
+                <p id="loadingStatus"></p>
+            </div>
+
+            <div id="results" class="results"></div>
+        </div>
+
+        <!-- API配置标签页 -->
+        <div id="config" class="tab-content">
+            <div class="form-group">
+                <label for="apiKey">API密钥：</label>
+                <input type="password" id="apiKey" placeholder="输入你的OpenAI API密钥">
+            </div>
+            <div class="form-group">
+                <label for="apiModel">默认模型（各模块可单独配置）：</label>
+                <select id="apiModel">
+                    <option value="gpt-4">GPT-4 (推荐用于执行导演)</option>
+                    <option value="gpt-4-turbo" selected>GPT-4 Turbo (推荐用于大部分模块)</option>
+                    <option value="gpt-4-turbo-preview">GPT-4 Turbo Preview</option>
+                    <option value="gpt-4o">GPT-4o (最新版本)</option>
+                    <option value="gpt-4o-mini">GPT-4o Mini (快速版本)</option>
+                    <option value="gpt-3.5-turbo">GPT-3.5 Turbo (经济版本)</option>
+                </select>
+                <small style="color: #666; display: block; margin-top: 5px;">
+                    提示：可以在"Prompt配置"标签页中为每个模块单独设置模型
+                </small>
+            </div>
+            <div class="form-group">
+                <label for="apiBaseUrl">Base URL（可选，用于自定义API端点）：</label>
+                <input type="text" id="apiBaseUrl" placeholder="留空使用默认OpenAI端点">
+            </div>
+            <button class="btn" onclick="saveApiConfig()">💾 保存配置</button>
+            <div id="configMessage"></div>
+        </div>
+
+        <!-- Prompt配置标签页 -->
+        <div id="prompts" class="tab-content">
+            <div id="promptModules"></div>
+        </div>
+    </div>
+
+    <script>
+        // 自动检测API基础路径
+        const API_BASE = window.location.origin + '/api';
+
+        function switchTab(tabName) {
+            document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+            document.querySelectorAll('.tab-content').forEach(t => t.classList.remove('active'));
+            event.target.classList.add('active');
+            document.getElementById(tabName).classList.add('active');
+
+            if (tabName === 'prompts') {
+                loadPromptConfigs();
+            } else if (tabName === 'config') {
+                loadApiConfig();
+            }
+        }
+
+        async function loadApiConfig() {
+            try {
+                const response = await fetch(`${API_BASE}/config`);
+                const config = await response.json();
+                document.getElementById('apiKey').value = config.api_config?.api_key || '';
+                document.getElementById('apiModel').value = config.api_config?.model || 'gpt-4';
+                document.getElementById('apiBaseUrl').value = config.api_config?.base_url || '';
+            } catch (error) {
+                console.error('加载配置失败:', error);
+            }
+        }
+
+        async function saveApiConfig() {
+            const apiKey = document.getElementById('apiKey').value;
+            const model = document.getElementById('apiModel').value;
+            const baseUrl = document.getElementById('apiBaseUrl').value;
+
+            try {
+                const response = await fetch(`${API_BASE}/config`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        api_config: {
+                            api_key: apiKey,
+                            model: model,
+                            base_url: baseUrl
+                        }
+                    })
+                });
+
+                const result = await response.json();
+                if (result.success) {
+                    showMessage('configMessage', '配置保存成功！', 'success');
+                } else {
+                    showMessage('configMessage', '保存失败：' + result.error, 'error');
+                }
+            } catch (error) {
+                showMessage('configMessage', '保存失败：' + error.message, 'error');
+            }
+        }
+
+        async function loadPromptConfigs() {
+            try {
+                const response = await fetch(`${API_BASE}/modules`);
+                const modules = await response.json();
+                
+                const container = document.getElementById('promptModules');
+                container.innerHTML = '';
+
+                for (const [moduleName, moduleConfig] of Object.entries(modules)) {
+                    const moduleDiv = document.createElement('div');
+                    moduleDiv.className = 'module-config';
+                    moduleDiv.innerHTML = `
+                        <h3>${moduleConfig.name} (${moduleName})</h3>
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label>模型:</label>
+                                <select id="${moduleName}_model">
+                                    <option value="" ${!moduleConfig.model ? 'selected' : ''}>使用默认模型</option>
+                                    <option value="gpt-4" ${moduleConfig.model === 'gpt-4' ? 'selected' : ''}>GPT-4 (推荐用于执行导演)</option>
+                                    <option value="gpt-4-turbo" ${moduleConfig.model === 'gpt-4-turbo' ? 'selected' : ''}>GPT-4 Turbo (推荐)</option>
+                                    <option value="gpt-4-turbo-preview" ${moduleConfig.model === 'gpt-4-turbo-preview' ? 'selected' : ''}>GPT-4 Turbo Preview</option>
+                                    <option value="gpt-4o" ${moduleConfig.model === 'gpt-4o' ? 'selected' : ''}>GPT-4o (最新版本)</option>
+                                    <option value="gpt-4o-mini" ${moduleConfig.model === 'gpt-4o-mini' ? 'selected' : ''}>GPT-4o Mini (快速版本)</option>
+                                    <option value="gpt-3.5-turbo" ${moduleConfig.model === 'gpt-3.5-turbo' ? 'selected' : ''}>GPT-3.5 Turbo (经济版本)</option>
+                                </select>
+                            </div>
+                            <div class="form-group">
+                                <label>Temperature:</label>
+                                <input type="number" id="${moduleName}_temp" step="0.1" min="0" max="2" value="${moduleConfig.temperature}">
+                            </div>
+                            <div class="form-group">
+                                <label>Max Tokens:</label>
+                                <input type="number" id="${moduleName}_tokens" min="100" max="8000" value="${moduleConfig.max_tokens}">
+                            </div>
+                            <div class="form-group">
+                                <label>JSON Mode:</label>
+                                <select id="${moduleName}_json">
+                                    <option value="true" ${moduleConfig.json_mode ? 'selected' : ''}>是</option>
+                                    <option value="false" ${!moduleConfig.json_mode ? 'selected' : ''}>否</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div class="form-group">
+                            <label>Prompt模板:</label>
+                            <textarea id="${moduleName}_prompt" style="min-height: 200px;">${moduleConfig.prompt_template}</textarea>
+                        </div>
+                        <button class="btn btn-secondary" onclick="saveModuleConfig('${moduleName}')">保存此模块配置</button>
+                    `;
+                    container.appendChild(moduleDiv);
+                }
+            } catch (error) {
+                console.error('加载Prompt配置失败:', error);
+            }
+        }
+
+        async function saveModuleConfig(moduleName) {
+            const model = document.getElementById(`${moduleName}_model`).value;
+            const temp = parseFloat(document.getElementById(`${moduleName}_temp`).value);
+            const tokens = parseInt(document.getElementById(`${moduleName}_tokens`).value);
+            const jsonMode = document.getElementById(`${moduleName}_json`).value === 'true';
+            const prompt = document.getElementById(`${moduleName}_prompt`).value;
+
+            try {
+                const response = await fetch(`${API_BASE}/modules/${moduleName}`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        model: model || null,
+                        temperature: temp,
+                        max_tokens: tokens,
+                        json_mode: jsonMode,
+                        prompt_template: prompt
+                    })
+                });
+
+                const result = await response.json();
+                if (result.success) {
+                    alert('模块配置保存成功！');
+                } else {
+                    alert('保存失败：' + result.error);
+                }
+            } catch (error) {
+                alert('保存失败：' + error.message);
+            }
+        }
+
+        async function generateLua() {
+            const userInput = document.getElementById('userInput').value.trim();
+            if (!userInput) {
+                alert('请输入你的游戏想法');
+                return;
+            }
+
+            const loading = document.getElementById('loading');
+            const resultsDiv = document.getElementById('results');
+            const statusDiv = document.getElementById('loadingStatus');
+
+            loading.classList.add('active');
+            resultsDiv.innerHTML = '';
+
+            try {
+                statusDiv.textContent = '正在调用编剧模块...';
+                const response = await fetch(`${API_BASE}/generate`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ user_input: userInput })
+                });
+
+                // 检查响应状态
+                if (!response.ok) {
+                    const errorData = await response.json().catch(() => ({ error: `HTTP ${response.status}: ${response.statusText}` }));
+                    throw new Error(errorData.error || `服务器错误: ${response.status}`);
+                }
+
+                const result = await response.json();
+
+                if (result.error) {
+                    throw new Error(result.error);
+                }
+
+                if (!result.success) {
+                    throw new Error('生成失败：服务器返回失败状态');
+                }
+
+                loading.classList.remove('active');
+                displayResults(result.results, result.saved_files, result.output_dir);
+
+            } catch (error) {
+                loading.classList.remove('active');
+                let errorMsg = error.message;
+                if (error.message.includes('Failed to fetch') || error.message.includes('NetworkError')) {
+                    errorMsg = '网络连接失败，请检查服务器是否正在运行';
+                }
+                resultsDiv.innerHTML = `<div class="error">
+                    <strong>生成失败</strong><br>
+                    ${errorMsg}<br>
+                    <small style="margin-top: 10px; display: block;">提示：请检查服务器控制台的错误日志以获取更多信息</small>
+                </div>`;
+                console.error('生成错误详情:', error);
+            }
+        }
+
+        function displayResults(results, savedFiles, outputDir) {
+            const resultsDiv = document.getElementById('results');
+            resultsDiv.innerHTML = '';
+
+            if (savedFiles && Object.keys(savedFiles).length > 0) {
+                const filesDiv = document.createElement('div');
+                filesDiv.className = 'result-section';
+                filesDiv.style.border = '2px solid #4CAF50';
+                filesDiv.style.backgroundColor = '#f0f9f0';
+                
+                let filesHtml = `
+                    <div class="result-header" onclick="toggleResult(this)" style="background-color: #4CAF50; color: white;">
+                        <span>✅ 已保存的文件（可直接使用）</span>
+                        <span>▼</span>
+                    </div>
+                    <div class="result-content active">
+                        <div style="padding: 15px;">
+                            <p style="margin-bottom: 10px; font-weight: bold;">文件已自动保存到 <code>${outputDir || 'output'}</code> 目录：</p>
+                            <ul style="list-style: none; padding: 0;">
+                `;
+                
+                for (const [filename, filepath] of Object.entries(savedFiles)) {
+                    filesHtml += `
+                        <li style="margin: 10px 0; padding: 10px; background: white; border-radius: 5px; border-left: 4px solid #4CAF50;">
+                            <strong>📄 ${filename}</strong>
+                            <br>
+                            <small style="color: #666;">路径: ${filepath}</small>
+                            <br>
+                            <a href="/api/download/${filename}" download="${filename}" 
+                               style="display: inline-block; margin-top: 5px; padding: 5px 15px; background: #4CAF50; color: white; text-decoration: none; border-radius: 3px;">
+                                ⬇️ 下载
+                            </a>
+                        </li>
+                    `;
+                }
+                
+                filesHtml += `
+                            </ul>
+                            <div style="margin-top: 15px; padding: 10px; background: #fff3cd; border-radius: 5px; border-left: 4px solid #ffc107;">
+                                <strong>💡 使用说明：</strong>
+                                <ul style="margin: 5px 0; padding-left: 20px;">
+                                    <li>执行 <code>main.lua</code> 作为主入口文件</li>
+                                    <li><code>Stage.lua</code> 和 <code>Cast.lua</code> 会被自动加载</li>
+                                    <li>确保所有文件在同一目录或正确配置 Lua 模块路径</li>
+                                </ul>
+                            </div>
+                        </div>
+                    </div>
+                `;
+                
+                filesDiv.innerHTML = filesHtml;
+                resultsDiv.appendChild(filesDiv);
+            }
+
+            const sections = [
+                { key: 'blueprint', title: '📝 编剧蓝图 (Blueprint)', isJson: true },
+                { key: 'stage_design', title: '🎨 场务设计 (Stage Design)', isJson: true },
+                { key: 'stage_lua', title: '🔧 场务Lua代码 (Stage.lua)', isJson: false },
+                { key: 'casting_design', title: '👥 选角设计 (Casting Design)', isJson: true },
+                { key: 'cast_lua', title: '🎭 角色Lua代码 (Cast.lua)', isJson: false },
+                { key: 'main_lua', title: '🎬 主程序Lua代码 (main.lua) ⭐ 执行这个', isJson: false }
+            ];
+
+            sections.forEach(section => {
+                if (results[section.key]) {
+                    const sectionDiv = document.createElement('div');
+                    sectionDiv.className = 'result-section';
+                    
+                    const content = typeof results[section.key] === 'string' 
+                        ? results[section.key] 
+                        : JSON.stringify(results[section.key], null, 2);
+                    
+                    sectionDiv.innerHTML = `
+                        <div class="result-header" onclick="toggleResult(this)">
+                            <span>${section.title}</span>
+                            <span>▼</span>
+                        </div>
+                        <div class="result-content">
+                            <pre class="${section.isJson ? 'json' : ''}">${escapeHtml(content)}</pre>
+                        </div>
+                    `;
+                    resultsDiv.appendChild(sectionDiv);
+                }
+            });
+        }
+
+        function toggleResult(header) {
+            const content = header.nextElementSibling;
+            content.classList.toggle('active');
+            header.querySelector('span:last-child').textContent = 
+                content.classList.contains('active') ? '▲' : '▼';
+        }
+
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+
+        function showMessage(elementId, message, type) {
+            const element = document.getElementById(elementId);
+            element.className = type;
+            element.textContent = message;
+            setTimeout(() => {
+                element.textContent = '';
+                element.className = '';
+            }, 3000);
+        }
+
+        // 页面加载时加载API配置
+        window.onload = function() {
+            loadApiConfig();
+        };
+    </script>
+</body>
+</html>
+
