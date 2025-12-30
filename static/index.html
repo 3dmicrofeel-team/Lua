@@ -297,6 +297,7 @@
 
         <div class="tabs">
             <button class="tab active" onclick="switchTab('generate')">生成Lua</button>
+            <button class="tab" onclick="switchTab('generate-level')">关卡生成</button>
             <button class="tab" onclick="switchTab('config')">API配置</button>
             <button class="tab" onclick="switchTab('prompts')">Prompt配置</button>
         </div>
@@ -344,6 +345,29 @@
             </div>
             <button class="btn" onclick="saveApiConfig()">💾 保存配置</button>
             <div id="configMessage"></div>
+        </div>
+
+        <!-- 关卡生成标签页 -->
+        <div id="generate-level" class="tab-content">
+            <div class="form-group">
+                <label for="levelUserInput">输入关卡描述（自然语言）：</label>
+                <textarea id="levelUserInput" placeholder="例如：创建一个20x12的废弃墓地关卡，有2个敌人，1个NPC，1个宝箱，1个门，难度中等..."></textarea>
+            </div>
+            <div class="form-group">
+                <label>
+                    <input type="checkbox" id="useIntentParser" checked>
+                    使用Intent Parser（推荐，可解析自然语言为结构化约束）
+                </label>
+            </div>
+            <button class="btn" onclick="generateLevel()">🎮 生成关卡Lua代码</button>
+
+            <div class="loading" id="levelLoading">
+                <div class="spinner"></div>
+                <p>正在生成关卡中，请稍候...</p>
+                <p id="levelLoadingStatus"></p>
+            </div>
+
+            <div id="levelResults" class="results"></div>
         </div>
 
         <!-- Prompt配置标签页 -->
@@ -659,6 +683,143 @@
                 element.textContent = '';
                 element.className = '';
             }, 3000);
+        }
+
+        async function generateLevel() {
+            const userInput = document.getElementById('levelUserInput').value.trim();
+            if (!userInput) {
+                alert('请输入关卡描述');
+                return;
+            }
+
+            const useIntentParser = document.getElementById('useIntentParser').checked;
+            const loading = document.getElementById('levelLoading');
+            const resultsDiv = document.getElementById('levelResults');
+            const statusDiv = document.getElementById('levelLoadingStatus');
+
+            loading.classList.add('active');
+            resultsDiv.innerHTML = '';
+
+            try {
+                statusDiv.textContent = '正在调用关卡生成模块...';
+                const response = await fetch(`${API_BASE}/generate-level`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ 
+                        user_input: userInput,
+                        use_intent_parser: useIntentParser
+                    })
+                });
+
+                if (!response.ok) {
+                    const errorData = await response.json().catch(() => ({ error: `HTTP ${response.status}: ${response.statusText}` }));
+                    throw new Error(errorData.error || `服务器错误: ${response.status}`);
+                }
+
+                const result = await response.json();
+
+                if (result.error) {
+                    throw new Error(result.error);
+                }
+
+                if (!result.success) {
+                    throw new Error('生成失败：服务器返回失败状态');
+                }
+
+                loading.classList.remove('active');
+                displayLevelResults(result.results, result.saved_files, result.output_dir);
+
+            } catch (error) {
+                loading.classList.remove('active');
+                let errorMsg = error.message;
+                if (error.message.includes('Failed to fetch') || error.message.includes('NetworkError')) {
+                    errorMsg = '网络连接失败，请检查服务器是否正在运行';
+                }
+                resultsDiv.innerHTML = `<div class="error">
+                    <strong>生成失败</strong><br>
+                    ${errorMsg}<br>
+                    <small style="margin-top: 10px; display: block;">提示：请检查服务器控制台的错误日志以获取更多信息</small>
+                </div>`;
+                console.error('生成错误详情:', error);
+            }
+        }
+
+        function displayLevelResults(results, savedFiles, outputDir) {
+            const resultsDiv = document.getElementById('levelResults');
+            resultsDiv.innerHTML = '';
+
+            if (savedFiles && Object.keys(savedFiles).length > 0) {
+                const filesDiv = document.createElement('div');
+                filesDiv.className = 'result-section';
+                filesDiv.style.border = '2px solid #4CAF50';
+                filesDiv.style.backgroundColor = '#f0f9f0';
+                
+                let filesHtml = `
+                    <div class="result-header" onclick="toggleResult(this)" style="background-color: #4CAF50; color: white;">
+                        <span>✅ 已保存的文件（可直接使用）</span>
+                        <span>▼</span>
+                    </div>
+                    <div class="result-content active">
+                        <div style="padding: 15px;">
+                            <p style="margin-bottom: 10px; font-weight: bold;">文件已自动保存到 <code>${outputDir || 'output'}</code> 目录：</p>
+                            <ul style="list-style: none; padding: 0;">
+                `;
+                
+                for (const [filename, filepath] of Object.entries(savedFiles)) {
+                    filesHtml += `
+                        <li style="margin: 10px 0; padding: 10px; background: white; border-radius: 5px; border-left: 4px solid #4CAF50;">
+                            <strong>📄 ${filename}</strong>
+                            <br>
+                            <small style="color: #666;">路径: ${filepath}</small>
+                            <br>
+                            <a href="/api/download/${filename}" download="${filename}" 
+                               style="display: inline-block; margin-top: 5px; padding: 5px 15px; background: #4CAF50; color: white; text-decoration: none; border-radius: 3px;">
+                                ⬇️ 下载
+                            </a>
+                        </li>
+                    `;
+                }
+                
+                filesHtml += `
+                            </ul>
+                        </div>
+                    </div>
+                `;
+                
+                filesDiv.innerHTML = filesHtml;
+                resultsDiv.appendChild(filesDiv);
+            }
+
+            const sections = [
+                { key: 'intent', title: '📋 Intent Parser结果', isJson: true },
+                { key: 'draft_layout', title: '🗺️ Grid Planner布局', isJson: true },
+                { key: 'validated_result', title: '✅ LayoutGuard验证结果', isJson: true },
+                { key: 'level_lua', title: '💻 初始Lua代码', isJson: false },
+                { key: 'validated_lua', title: '✅ 验证后的Lua代码 (Level.lua) ⭐ 执行这个', isJson: false }
+            ];
+
+            sections.forEach(section => {
+                if (results[section.key]) {
+                    const sectionDiv = document.createElement('div');
+                    sectionDiv.className = 'result-section';
+                    
+                    let content = results[section.key];
+                    if (typeof content === 'object') {
+                        content = JSON.stringify(content, null, 2);
+                    }
+                    
+                    sectionDiv.innerHTML = `
+                        <div class="result-header" onclick="toggleResult(this)">
+                            <span>${section.title}</span>
+                            <span>▼</span>
+                        </div>
+                        <div class="result-content">
+                            <pre class="${section.isJson ? 'json' : ''}">${escapeHtml(content)}</pre>
+                        </div>
+                    `;
+                    resultsDiv.appendChild(sectionDiv);
+                }
+            });
         }
 
         // 页面加载时加载API配置

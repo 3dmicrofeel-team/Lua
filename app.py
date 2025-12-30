@@ -116,7 +116,7 @@ def extract_json_from_response(text):
             error_info["raw_preview"] = text[:1000] + "..."
         return error_info
 
-def call_gpt_module(module_name, prompt, config):
+def call_gpt_module(module_name, prompt, config, system_prompt=None):
     """调用GPT模块"""
     if module_name not in config.get("modules", {}):
         raise ValueError(f"模块 {module_name} 不存在于配置中")
@@ -139,8 +139,12 @@ def call_gpt_module(module_name, prompt, config):
     
     # 直接使用用户指定的模型，不进行自动映射
     
+    # 使用自定义system prompt或默认值
+    if system_prompt is None:
+        system_prompt = "你是一个专业的Lua游戏脚本生成助手。"
+    
     messages = [
-        {"role": "system", "content": "你是一个专业的Lua游戏脚本生成助手。"},
+        {"role": "system", "content": system_prompt},
         {"role": "user", "content": prompt}
     ]
     
@@ -518,6 +522,503 @@ def list_files():
                 })
     
     return jsonify({"files": files})
+
+@app.route('/api/generate-level', methods=['POST'])
+def generate_level():
+    """生成关卡Lua代码的主流程"""
+    try:
+        data = request.json
+        if not data:
+            return jsonify({"error": "请求数据为空"}), 400
+            
+        user_input = data.get("user_input", "")
+        use_intent_parser = data.get("use_intent_parser", True)
+        
+        if not user_input:
+            return jsonify({"error": "用户输入不能为空"}), 400
+        
+        config = load_config()
+        
+        if not config:
+            return jsonify({"error": "配置文件不存在或为空"}), 500
+        
+        if "api_config" not in config:
+            return jsonify({"error": "配置文件中缺少api_config配置"}), 500
+        
+        api_key = config.get("api_config", {}).get("api_key", "")
+        if not api_key:
+            return jsonify({"error": "请先配置API密钥"}), 400
+        
+        # 验证必需的模块是否存在
+        required_modules = ["grid_planner", "layout_guard", "lua_builder", "lua_validator"]
+        if use_intent_parser:
+            required_modules.insert(0, "intent_parser")
+        
+        missing_modules = [m for m in required_modules if m not in config.get("modules", {})]
+        if missing_modules:
+            return jsonify({"error": f"缺少必需的模块配置: {', '.join(missing_modules)}"}), 500
+    
+    except KeyError as e:
+        return jsonify({"error": f"配置错误: 缺少必需的配置项 {str(e)}"}), 500
+    except Exception as e:
+        return jsonify({"error": f"配置加载失败: {str(e)}"}), 500
+    
+    try:
+        results = {}
+        
+        # Module 0: Intent Parser (可选)
+        intent_data = None
+        if use_intent_parser:
+            print("开始Intent Parser模块...")
+            try:
+                intent_parser_config = config["modules"]["intent_parser"]
+                intent_prompt = intent_parser_config.get("prompt_template", "").format(
+                    user_input=user_input
+                )
+                if not intent_prompt:
+                    # 如果没有prompt_template，使用默认prompt
+                    intent_prompt = f"""System:
+You are a level requirement parser.
+Your task is to convert the user's natural language description into structured level constraints.
+Do NOT generate any map, ASCII grid, or Lua code.
+
+Developer:
+Output MUST be strict JSON. Do not include explanations or markdown.
+Use exactly the following structure:
+
+{{
+  "language": "zh" | "en",
+  "theme": "string",
+  "grid": {{
+    "width": int,
+    "height": int,
+    "meters_per_char": number
+  }},
+  "counts": {{
+    "enemy": int,
+    "npc": int,
+    "chest": int,
+    "door": int
+  }},
+  "constraints": {{
+    "must_have_path_to_door": bool,
+    "chest_on_side_path": bool,
+    "difficulty": "easy" | "medium" | "hard",
+    "notes": ["string"]
+  }}
+}}
+
+Default rules:
+- If size is not specified: width=20, height=12, meters_per_char=1
+- If counts are not specified: enemy=2, npc=1, chest=1, door=1
+- must_have_path_to_door defaults to true when door > 0
+- chest_on_side_path defaults to true when chest > 0
+- Detect language automatically from user input
+
+User:
+{user_input}"""
+                
+                intent_data = call_gpt_module("intent_parser", intent_prompt, config)
+                results["intent"] = intent_data
+                print("Intent Parser模块完成")
+            except Exception as e:
+                print(f"Intent Parser模块失败: {str(e)}")
+                # Intent Parser是可选的，失败时继续使用默认值
+                intent_data = {
+                    "language": "zh",
+                    "theme": "default",
+                    "grid": {"width": 20, "height": 12, "meters_per_char": 1},
+                    "counts": {"enemy": 2, "npc": 1, "chest": 1, "door": 1},
+                    "constraints": {
+                        "must_have_path_to_door": True,
+                        "chest_on_side_path": True,
+                        "difficulty": "medium",
+                        "notes": []
+                    }
+                }
+                results["intent"] = intent_data
+        
+        # 如果没有intent_data，创建默认值
+        if intent_data is None:
+            intent_data = {
+                "language": "zh",
+                "theme": "default",
+                "grid": {"width": 20, "height": 12, "meters_per_char": 1},
+                "counts": {"enemy": 2, "npc": 1, "chest": 1, "door": 1},
+                "constraints": {
+                    "must_have_path_to_door": True,
+                    "chest_on_side_path": True,
+                    "difficulty": "medium",
+                    "notes": []
+                }
+            }
+        
+        intent_str = json.dumps(intent_data, ensure_ascii=False)
+        
+        # Module 1: Grid Planner
+        print("开始Grid Planner模块...")
+        grid_planner_config = config["modules"]["grid_planner"]
+        grid_planner_prompt = grid_planner_config.get("prompt_template", "").format(
+            intent=intent_str
+        )
+        if not grid_planner_prompt:
+            grid_planner_prompt = f"""System:
+You are a top-down RPG level layout designer.
+Your task is to design an ASCII grid layout and entity coordinates.
+Do NOT generate Lua code.
+
+Developer:
+Output MUST be strict JSON. Do not include explanations or markdown.
+Use exactly the following structure:
+
+{{
+  "grid_meta": {{
+    "width": int,
+    "height": int,
+    "meters_per_char": number,
+    "origin": "top_left_(0,0)"
+  }},
+  "grid_ascii": ["string"],
+  "entities": {{
+    "player_start": {{"x": int, "y": int}},
+    "doors": [{{"x": int, "y": int}}],
+    "chests": [{{"x": int, "y": int}}],
+    "enemies": [{{"x": int, "y": int, "type": "Skeleton_Warrior"}}],
+    "npcs": [{{"x": int, "y": int, "type": "Ghost_Nun"}}]
+  }},
+  "design_notes": ["string"]
+}}
+
+Hard rules:
+1. grid_ascii length must equal height
+2. each row length must equal width
+3. allowed characters only: . # S C E N D
+4. exactly ONE 'S'
+5. symbol counts must match counts in intent
+6. entity coordinates must match symbols in grid_ascii
+
+Design goals:
+- Main path should be clear
+- Chest should be on a side path if possible
+- Respect difficulty and notes from intent
+
+design_notes:
+- max 3 short bullet-style sentences
+
+User:
+{{
+  "intent": {intent_str}
+}}"""
+        
+        draft_layout = call_gpt_module("grid_planner", grid_planner_prompt, config)
+        results["draft_layout"] = draft_layout
+        print("Grid Planner模块完成")
+        
+        draft_layout_str = json.dumps(draft_layout, ensure_ascii=False)
+        
+        # Module 1.5: LayoutGuard
+        print("开始LayoutGuard模块...")
+        layout_guard_config = config["modules"]["layout_guard"]
+        layout_guard_prompt = layout_guard_config.get("prompt_template", "").format(
+            intent=intent_str,
+            draft_layout=draft_layout_str
+        )
+        if not layout_guard_prompt:
+            layout_guard_prompt = f"""System:
+You are LayoutGuard, a layout validation and auto-fix module.
+Your job is to ensure the layout is fully valid.
+If the input layout is already valid, return it unchanged.
+If any issue exists, fix it with minimal changes and return the corrected layout.
+Do NOT output any extra text.
+
+Developer:
+Output MUST be strict JSON.
+Use exactly the following structure:
+
+{{
+  "status": "unchanged" | "fixed",
+  "errors": [
+    {{"code": "string", "detail": "string"}}
+  ],
+  "fixes": [
+    {{"action": "string", "detail": "string"}}
+  ],
+  "layout": {{
+    "grid_meta": {{
+      "width": int,
+      "height": int,
+      "meters_per_char": number,
+      "origin": "top_left_(0,0)"
+    }},
+    "grid_ascii": ["string"],
+    "entities": {{
+      "player_start": {{"x": int, "y": int}},
+      "doors": [{{"x": int, "y": int}}],
+      "chests": [{{"x": int, "y": int}}],
+      "enemies": [{{"x": int, "y": int, "type": "Skeleton_Warrior"}}],
+      "npcs": [{{"x": int, "y": int, "type": "Ghost_Nun"}}]
+    }},
+    "design_notes": ["string"]
+  }}
+}}
+
+Hard constraints (MUST ALL PASS):
+1. grid_ascii dimensions must match grid_meta
+2. only allowed characters: . # S C E N D
+3. exactly ONE 'S'
+4. entity coordinates must exactly match symbols in grid_ascii (bidirectional)
+5. if doors exist: S must be able to reach at least one D
+   - walkable: . S C E N D N
+   - blocked: #
+
+Fix rules:
+- Prefer minimal changes
+- Fix order:
+  (1) dimensions / illegal chars
+  (2) unique S
+  (3) grid ↔ entities mismatch
+  (4) reachability (carve minimal path through '#')
+  (5) count mismatch (last resort)
+- design_notes: max 3 short sentences
+
+User:
+{{
+  "intent": {intent_str},
+  "draft_layout": {draft_layout_str}
+}}"""
+        
+        validated_result = call_gpt_module("layout_guard", layout_guard_prompt, config)
+        results["validated_result"] = validated_result
+        print("LayoutGuard模块完成")
+        
+        # 提取validated_layout
+        validated_layout = validated_result.get("layout", draft_layout) if isinstance(validated_result, dict) else draft_layout
+        validated_layout_str = json.dumps(validated_layout, ensure_ascii=False)
+        
+        # Module 2: Lua Builder
+        print("开始Lua Builder模块...")
+        lua_builder_config = config["modules"]["lua_builder"]
+        
+        # 获取语言和environment设置
+        language = intent_data.get("language", "zh")
+        environment = {
+            "weather": "Foggy",
+            "time": "Night"
+        }
+        
+        lua_builder_prompt = lua_builder_config.get("prompt_template", "").format(
+            language=language,
+            validated_layout=validated_layout_str,
+            environment=json.dumps(environment, ensure_ascii=False)
+        )
+        if not lua_builder_prompt:
+            lua_builder_prompt = f"""System:
+You are a Lead Level Designer generating Lua scripts for a top-down RPG.
+Convert a validated level layout into Lua code.
+Strictly use the provided API only.
+
+Developer:
+You may ONLY use the following API functions:
+
+- block = Env.AllocBlock(Width, Height, X_Index, Y_Index)
+- Env.PlaceItem(block, "AssetID", LocalX, LocalY)
+- Env.SpawnNPC(block, "NpcID", LocalX, LocalY, "TeamTag")
+- Env.SetEnvironment("WeatherID", "TimeID")
+- World.AddTrigger(TargetActor, "InteractPress", Radius, LuaCode)
+
+Asset whitelist:
+Props: Well_Dry, Tree_Dead, Grave_Stone, Wall_Stone
+NPCs: Ghost_Nun, Skeleton_Warrior
+
+CONVERSION METHOD - LINE BY LINE:
+You MUST convert the ASCII grid line by line, character by character:
+1. Start with row Y=0 (first line of grid_ascii)
+2. For each row, process from left to right (X=0 to width-1)
+3. For each character in the row:
+   - '#' → Env.PlaceItem(block, "Wall_Stone", X, Y)
+   - 'S' → player_start (note position, spawn player at X, Y)
+   - 'D' → Env.PlaceItem(block, "Wall_Stone", X, Y)  (door is Wall_Stone)
+   - 'C' → Env.PlaceItem(block, "Grave_Stone", X, Y)  (chest)
+   - 'E' → Env.SpawnNPC(block, "Skeleton_Warrior", X, Y, "Enemy")
+   - 'N' → Env.SpawnNPC(block, "Ghost_Nun", X, Y, "Neutral")
+   - '.' → skip (empty/walkable space)
+4. Move to next row (Y+1) and repeat
+5. This ensures every character is processed exactly once
+
+Output rules:
+1. Output ONLY pure Lua code - NO markdown code blocks (no ```lua or ```)
+2. Start directly with Lua code, DO NOT wrap in markdown
+3. ALWAYS allocate blocks first, then place items / spawn NPCs
+4. Process grid_ascii line by line, character by character
+5. Coordinates: X=column index (0 to width-1), Y=row index (0 to height-1)
+6. Language rule:
+   - Chinese input → Chinese comments
+   - English input → English comments
+
+Implementation conventions:
+- Use ONE block covering the entire grid:
+  Width = grid_meta.width
+  Height = grid_meta.height
+  X_Index = 0, Y_Index = 0
+- Process grid_ascii array line by line:
+  for Y = 0 to height-1:
+    row = grid_ascii[Y]
+    for X = 0 to width-1:
+      char = row[X]
+      convert char to appropriate Lua command
+- Enemies → TeamTag = "Enemy"
+- NPCs → TeamTag = "Neutral"
+- CRITICAL: Process EVERY character in EVERY row - do not skip any
+- The line-by-line approach ensures 100% accuracy and completeness
+
+User:
+{{
+  "language": "{language}",
+  "validated_layout": {validated_layout_str},
+  "environment": {json.dumps(environment, ensure_ascii=False)}
+}}"""
+        
+        level_lua = call_gpt_module("lua_builder", lua_builder_prompt, config)
+        results["level_lua"] = level_lua
+        print("Lua Builder模块完成")
+        
+        # 提取Lua代码（如果被包装在代码块中）
+        if isinstance(level_lua, str):
+            # 尝试提取lua代码块
+            lua_match = re.search(r'```(?:lua)?\s*(.*?)\s*```', level_lua, re.DOTALL)
+            if lua_match:
+                level_lua = lua_match.group(1)
+        
+        # Module 2.5: Lua Validator (验证Lua代码与ASCII地图的一致性)
+        print("开始Lua Validator模块...")
+        lua_validator_config = config["modules"]["lua_validator"]
+        
+        level_lua_str = level_lua if isinstance(level_lua, str) else json.dumps(level_lua, ensure_ascii=False)
+        
+        lua_validator_prompt = lua_validator_config.get("prompt_template", "").format(
+            validated_layout=validated_layout_str,
+            lua_code=json.dumps(level_lua_str, ensure_ascii=False)
+        )
+        if not lua_validator_prompt:
+            lua_validator_prompt = f"""System:
+You are a Lua Code Validator and Fixer for level generation.
+Your task is to verify that the generated Lua code correctly implements the ASCII grid layout.
+If there are inconsistencies, you must fix the Lua code to match the ASCII grid exactly.
+
+Developer:
+You will receive:
+1. A validated ASCII grid layout with entity positions
+2. The generated Lua code
+
+VALIDATION METHOD - LINE BY LINE:
+You MUST verify line by line, character by character:
+1. Extract grid_ascii array from validated_layout
+2. For each row Y (0 to height-1):
+   - Get the row string: row = grid_ascii[Y]
+   - For each column X (0 to width-1):
+     - Get character: char = row[X]
+     - Check if Lua code has the correct placement for (X, Y)
+     - Verify mapping:
+       * '#' → must have Env.PlaceItem(block, "Wall_Stone", X, Y)
+       * 'S' → must have player_start at (X, Y)
+       * 'D' → must have Env.PlaceItem(block, "Wall_Stone", X, Y)
+       * 'C' → must have Env.PlaceItem(block, "Grave_Stone", X, Y)
+       * 'E' → must have Env.SpawnNPC(block, "Skeleton_Warrior", X, Y, "Enemy")
+       * 'N' → must have Env.SpawnNPC(block, "Ghost_Nun", X, Y, "Neutral")
+       * '.' → should NOT have any placement
+3. If any character is missing or incorrect, fix it
+4. If code is correct, return it unchanged
+
+Mapping rules:
+- ASCII '#' = wall positions (MUST use Env.PlaceItem with Wall_Stone) - ALL '#' characters must be placed
+- ASCII 'S' = player_start position
+- ASCII 'D' = door positions (use Env.PlaceItem with Wall_Stone)
+- ASCII 'C' = chest positions (use Env.PlaceItem with Grave_Stone)
+- ASCII 'E' = enemy positions (use Env.SpawnNPC with Skeleton_Warrior, TeamTag="Enemy")
+- ASCII 'N' = NPC positions (use Env.SpawnNPC with Ghost_Nun, TeamTag="Neutral")
+- ASCII '.' = empty/walkable space (no placement needed)
+- ASCII '.' = empty/walkable space (no placement needed)
+
+CRITICAL REQUIREMENTS:
+- Output ONLY pure Lua code - NO markdown code blocks (no ```lua or ```)
+- Start directly with Lua code, DO NOT wrap in markdown
+- NO explanations or comments about what you changed
+- NO JSON output
+- Use line-by-line conversion: process grid_ascii row by row, character by character
+- If code is correct, return it unchanged
+- If code needs fixes, regenerate using line-by-line approach:
+  for Y = 0 to height-1:
+    row = grid_ascii[Y]
+    for X = 0 to width-1:
+      char = row[X]
+      generate appropriate Lua command for char at (X, Y)
+- Ensure ALL entities from ASCII grid are placed in Lua code (including ALL walls marked as '#')
+- Ensure ALL '#' characters in ASCII grid have corresponding Env.PlaceItem(block, "Wall_Stone", X, Y) calls
+- Ensure NO extra entities are placed that don't exist in ASCII grid
+- Coordinate system: X=column index (0 to width-1), Y=row index (0 to height-1)
+- The line-by-line approach ensures every character is checked and converted correctly
+
+User:
+{{
+  "validated_layout": {validated_layout_str},
+  "lua_code": {json.dumps(level_lua_str, ensure_ascii=False)}
+}}
+
+Analyze the Lua code and ASCII grid. If they match, return the Lua code unchanged. If they don't match, return the corrected Lua code that exactly matches the ASCII grid."""
+        
+        validated_lua = call_gpt_module("lua_validator", lua_validator_prompt, config)
+        results["validated_lua"] = validated_lua
+        print("Lua Validator模块完成")
+        
+        # 提取验证后的Lua代码（如果被包装在代码块中）
+        if isinstance(validated_lua, str):
+            # 尝试提取lua代码块
+            lua_match = re.search(r'```(?:lua)?\s*(.*?)\s*```', validated_lua, re.DOTALL)
+            if lua_match:
+                validated_lua = lua_match.group(1)
+        
+        # 使用验证后的Lua代码（如果验证模块返回了结果）
+        final_lua = validated_lua if (validated_lua and isinstance(validated_lua, str) and validated_lua.strip()) else level_lua
+        
+        # 自动保存生成的 Lua 文件
+        output_dir = "output"
+        if not os.path.exists(output_dir):
+            os.makedirs(output_dir)
+        
+        saved_files = {}
+        
+        # 保存最终验证后的 level_lua
+        if isinstance(final_lua, str) and final_lua.strip():
+            level_file = os.path.join(output_dir, "Level.lua")
+            with open(level_file, 'w', encoding='utf-8') as f:
+                f.write(final_lua)
+            saved_files["Level.lua"] = level_file
+            print(f"已保存: {level_file}")
+        
+        return jsonify({
+            "success": True,
+            "results": results,
+            "saved_files": saved_files,
+            "output_dir": output_dir
+        })
+        
+    except ValueError as e:
+        import traceback
+        error_trace = traceback.format_exc()
+        print(f"业务错误：\n{error_trace}")
+        return jsonify({
+            "error": str(e),
+            "error_type": "ValueError"
+        }), 500
+    except Exception as e:
+        import traceback
+        error_trace = traceback.format_exc()
+        print(f"未预期的错误：\n{error_trace}")
+        return jsonify({
+            "error": f"服务器内部错误: {str(e)}",
+            "error_type": type(e).__name__,
+            "traceback": error_trace if app.debug else None
+        }), 500
 
 if __name__ == '__main__':
     app.run(debug=True, port=5000)
