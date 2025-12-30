@@ -610,10 +610,15 @@ Use exactly the following structure:
 
 Default rules:
 - If size is not specified: width=20, height=12, meters_per_char=1
-- If counts are not specified: enemy=2, npc=1, chest=1, door=1
+- If counts are not specified: generate random values:
+  * enemy = random integer from 0 to 4 (inclusive)
+  * npc = random integer from 0 to 3 (inclusive)
+  * chest = random integer from 0 to 3 (inclusive)
+  * door = random integer from 0 to 3 (inclusive)
 - must_have_path_to_door defaults to true when door > 0
 - chest_on_side_path defaults to true when chest > 0
 - Detect language automatically from user input
+- IMPORTANT: Each time you generate counts, use different random values to add variety
 
 User:
 {user_input}"""
