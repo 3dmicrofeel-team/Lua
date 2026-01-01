@@ -793,9 +793,8 @@
             const sections = [
                 { key: 'intent', title: '📋 Intent Parser结果', isJson: true },
                 { key: 'draft_layout', title: '🗺️ Grid Planner布局', isJson: true },
-                { key: 'validated_result', title: '✅ LayoutGuard验证结果', isJson: true },
-                { key: 'level_lua', title: '💻 初始Lua代码', isJson: false },
-                { key: 'validated_lua', title: '✅ 验证后的Lua代码 (Level.lua) ⭐ 执行这个', isJson: false }
+                { key: 'validated_result', title: '✅ LayoutGuard验证结果 (Python验证)', isJson: true },
+                { key: 'level_lua', title: '💻 生成的Lua代码 (Level.lua) ⭐ 执行这个', isJson: false }
             ];
 
             sections.forEach(section => {
