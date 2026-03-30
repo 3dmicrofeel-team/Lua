@@ -1,0 +1,292 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>NPC 说服</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500&family=Noto+Sans+SC:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg-deep: #0d1117;
+      --bg-card: #161b22;
+      --bg-input: #21262d;
+      --border: #30363d;
+      --text: #e6edf3;
+      --text-muted: #8b949e;
+      --accent: #58a6ff;
+      --accent-hover: #79b8ff;
+      --success: #3fb950;
+      --error: #f85149;
+    }
+    * { box-sizing: border-box; }
+    body { margin: 0; background: var(--bg-deep); color: var(--text); font-family: 'Noto Sans SC', sans-serif; min-height: 100vh; line-height: 1.6; }
+    .container { max-width: 980px; margin: 0 auto; padding: 2rem; }
+    header { text-align: center; margin-bottom: 2rem; padding-bottom: 1.5rem; border-bottom: 1px solid var(--border); }
+    h1 { font-size: 1.5rem; font-weight: 600; margin: 0 0 0.5rem 0; }
+    .subtitle { color: var(--text-muted); font-size: 0.9rem; }
+    .nav-links { margin: 0.5rem 0; font-size: 0.9rem; }
+    .nav-links a { margin: 0 0.5rem; }
+    .card { background: var(--bg-card); border: 1px solid var(--border); border-radius: 12px; padding: 1.5rem; margin-bottom: 1.5rem; }
+    .card h2 { font-size: 1rem; font-weight: 600; margin: 0 0 1rem 0; }
+    label { display: block; font-size: 0.85rem; margin-bottom: 0.5rem; color: var(--text-muted); }
+    input, textarea { width: 100%; padding: 0.6rem 1rem; background: var(--bg-input); border: 1px solid var(--border); border-radius: 8px; color: var(--text); font-family: inherit; }
+    textarea { min-height: 100px; resize: vertical; font-family: 'JetBrains Mono', monospace; font-size: 0.85rem; }
+    .btn { display: inline-flex; align-items: center; padding: 0.6rem 1.2rem; font-size: 0.9rem; font-weight: 500; border: none; border-radius: 8px; cursor: pointer; font-family: inherit; }
+    .btn-primary { background: var(--accent); color: #fff; }
+    .btn-primary:hover { background: var(--accent-hover); }
+    .btn-sm { padding: 0.4rem 0.8rem; font-size: 0.8rem; }
+    .row { display: flex; gap: 1rem; flex-wrap: wrap; align-items: flex-start; }
+    .field { flex: 1; min-width: 180px; }
+    .tcp-status { display: inline-flex; align-items: center; gap: 0.5rem; padding: 0.35rem 0.75rem; border-radius: 20px; font-size: 0.85rem; }
+    .tcp-status.connected { background: rgba(63, 185, 80, 0.2); color: var(--success); }
+    .tcp-status.disconnected { background: var(--bg-input); color: var(--text-muted); }
+    .mono { font-family: 'JetBrains Mono', monospace; }
+    a { color: var(--accent); text-decoration: none; }
+    a:hover { text-decoration: underline; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <header>
+      <p style="margin: 0 0 0.5rem 0;"><a href="/">← 返回 LUA 奇遇脚本生成器</a></p>
+      <h1>NPC 说服</h1>
+      <p class="subtitle">Type=NPC_Persuade_Request，输出说服回合 LUA + 立场 Stance + 四类推荐回复</p>
+      <p class="nav-links"><a href="/npc-think">→ NPC 思考</a><a href="/npc-dialogue">→ NPC 对话</a></p>
+      <div id="tcpStatus" class="tcp-status disconnected">
+        <span class="dot" style="width:6px;height:6px;border-radius:50%;background:currentColor;"></span>
+        <span>未检测到客户端</span>
+      </div>
+    </header>
+
+    <div class="card">
+      <h2>🔑 API Key</h2>
+      <input type="password" id="apiKey" placeholder="sk-..." autocomplete="off">
+    </div>
+
+    <div class="card">
+      <h2>📥 输入 JSON（Type + Code + AdditionalContent）</h2>
+      <p style="font-size: 0.85rem; color: var(--text-muted); margin-bottom: 0.5rem;">
+        Round=0 且 AdditionalContent 为空时，NPC 先开场。后续回合把玩家输入放到 AdditionalContent。
+      </p>
+      <textarea id="ueJsonInput" placeholder='{"Type":"NPC_Persuade_Request","Code":{"NPCInfo":{"Name":"守剑人","Favorability":45,"BackgroundStory":"守护祖传之剑多年","Personality":"谨慎而固执","Topic":"你想借走他的传家剑","Stance":"不愿交出传家宝","Memory":"曾被人背叛"},"Round":0},"AdditionalContent":""}'></textarea>
+      <div style="display: flex; gap: 0.5rem; margin-top: 0.5rem;">
+        <button class="btn btn-primary btn-sm" id="parseJson">解析并填充</button>
+        <button class="btn btn-primary btn-sm" id="aiGenerate">AI 生成回合</button>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>📤 回合结果</h2>
+      <div class="row">
+        <div class="field">
+          <label>Stance（0=失败，100=成功）</label>
+          <input id="stanceOutput" class="mono" readonly>
+        </div>
+        <div class="field">
+          <label>MessageId</label>
+          <input id="messageIdOutput" class="mono" readonly>
+        </div>
+      </div>
+      <label style="margin-top: 0.75rem;">LUA</label>
+      <textarea id="luaOutput" placeholder="本轮生成的 LUA（说话+动画）"></textarea>
+      <label style="margin-top: 0.75rem;">推荐回复（四种角度）</label>
+      <textarea id="optionsOutput" placeholder="Option1~Option4"></textarea>
+      <label style="margin-top: 0.75rem;">完整响应 JSON</label>
+      <textarea id="jsonOutput" placeholder="完整 NPC_Persuade_Reply"></textarea>
+      <div style="display: flex; gap: 0.5rem; margin-top: 0.75rem;">
+        <button class="btn btn-primary" id="sendToUE">发送到 UE</button>
+        <button class="btn btn-primary btn-sm" id="copyLua">复制 LUA</button>
+      </div>
+      <p id="sendStatus" style="font-size: 0.85rem; margin-top: 0.5rem; color: var(--text-muted);"></p>
+    </div>
+  </div>
+
+  <script>
+    const API_BASE = window.location.origin;
+    const STORAGE_KEY = 'lua_gen_api_key';
+    const PAGE_TYPE = 'NPC_Persuade_Request';
+    const RESPONSE_TYPE = 'NPC_Persuade_Reply';
+    let lastResponse = null;
+
+    document.getElementById('apiKey').value = localStorage.getItem(STORAGE_KEY) || '';
+    (async function syncApiKeyOnLoad() {
+      const k = localStorage.getItem(STORAGE_KEY) || document.getElementById('apiKey').value.trim();
+      if (k) try { await fetch(API_BASE + '/api/api-key', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ api_key: k }) }); } catch (_) {}
+    })();
+
+    (function tryFillFromUE() {
+      try {
+        const raw = sessionStorage.getItem('ue_pending_persuade');
+        if (raw) {
+          sessionStorage.removeItem('ue_pending_persuade');
+          const payload = JSON.parse(raw);
+          document.getElementById('ueJsonInput').value = JSON.stringify(payload, null, 2);
+        }
+      } catch (_) {}
+    })();
+
+    function parseAndUnescapeJson(raw) {
+      if (!raw || typeof raw !== 'string') return null;
+      const j = JSON.parse(raw.trim());
+      const codeKey = j.Code !== undefined ? 'Code' : (j.code !== undefined ? 'code' : null);
+      if (codeKey && typeof j[codeKey] === 'string') {
+        try { j[codeKey] = JSON.parse(j[codeKey]); } catch (_) {}
+      }
+      return j;
+    }
+
+    document.getElementById('parseJson').onclick = function() {
+      const raw = document.getElementById('ueJsonInput').value.trim();
+      if (!raw) return;
+      try {
+        const j = parseAndUnescapeJson(raw);
+        document.getElementById('ueJsonInput').value = JSON.stringify(j, null, 2);
+      } catch (e) {
+        alert('JSON 解析失败: ' + e.message);
+      }
+    };
+
+    function parseReplyCode(code) {
+      if (!code) return null;
+      if (typeof code === 'object') return code;
+      if (typeof code === 'string') {
+        try { return JSON.parse(code); } catch (_) { return null; }
+      }
+      return null;
+    }
+
+    function renderResponse(d) {
+      lastResponse = d;
+      const codeObj = parseReplyCode(d && d.Code);
+      const forDisplay = codeObj != null ? Object.assign({}, d, { Code: codeObj }) : d;
+      document.getElementById('jsonOutput').value = JSON.stringify(forDisplay, null, 2);
+      const npcInfo = codeObj && codeObj.NPCInfo ? codeObj.NPCInfo : {};
+      document.getElementById('luaOutput').value = npcInfo.LUA || '';
+      document.getElementById('stanceOutput').value = String(npcInfo.Stance ?? '');
+      const options = npcInfo.Response || {};
+      document.getElementById('optionsOutput').value =
+        `Option1(情感): ${options.Option1 || ''}\n` +
+        `Option2(道理): ${options.Option2 || ''}\n` +
+        `Option3(威胁): ${options.Option3 || ''}\n` +
+        `Option4(欺骗): ${options.Option4 || ''}`;
+      document.getElementById('messageIdOutput').value = d.MessageId || '';
+    }
+
+    document.getElementById('aiGenerate').onclick = async function() {
+      const apiKey = document.getElementById('apiKey').value.trim();
+      if (!apiKey) { alert('请输入 API Key'); return; }
+      localStorage.setItem(STORAGE_KEY, apiKey);
+      try { await fetch(API_BASE + '/api/api-key', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ api_key: apiKey }) }); } catch (_) {}
+
+      const raw = document.getElementById('ueJsonInput').value.trim();
+      if (!raw) { alert('请先输入请求 JSON'); return; }
+      let j;
+      try { j = parseAndUnescapeJson(raw); } catch (e) { alert('请求 JSON 无法解析: ' + e.message); return; }
+
+      const btn = this;
+      btn.disabled = true;
+      btn.textContent = '生成中...';
+      try {
+        const r = await fetch(API_BASE + '/api/npc-interaction/generate', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            Type: j.Type || PAGE_TYPE,
+            Code: j.Code || j.code || {},
+            AdditionalContent: j.AdditionalContent || j.Additional_content || '',
+            MessageId: j.MessageId || j.message_id || '',
+            api_key: apiKey,
+          }),
+        });
+        const d = await r.json();
+        if (!r.ok) throw new Error(d.detail || '生成失败');
+        renderResponse(d);
+      } catch (e) {
+        alert('生成失败: ' + e.message);
+      }
+      btn.disabled = false;
+      btn.textContent = 'AI 生成回合';
+    };
+
+    document.getElementById('sendToUE').onclick = async function() {
+      if (!lastResponse) { alert('请先生成回合结果'); return; }
+      const status = document.getElementById('sendStatus');
+      try {
+        const r = await fetch(API_BASE + '/api/send-to-unreal', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            type: lastResponse.Type || RESPONSE_TYPE,
+            code: lastResponse.Code || {},
+            message_id: lastResponse.MessageId || '',
+          }),
+        });
+        const d = await r.json();
+        if (r.ok && d.sent_to > 0) {
+          status.textContent = '已发送到 ' + d.sent_to + ' 个客户端';
+          status.style.color = 'var(--success)';
+        } else {
+          status.textContent = '未连接 UE 或发送失败';
+          status.style.color = 'var(--error)';
+        }
+      } catch (e) {
+        status.textContent = '发送失败: ' + e.message;
+        status.style.color = 'var(--error)';
+      }
+    };
+
+    document.getElementById('copyLua').onclick = function() {
+      const code = document.getElementById('luaOutput').value;
+      if (code) {
+        navigator.clipboard.writeText(code);
+        this.textContent = '已复制';
+        setTimeout(() => { this.textContent = '复制 LUA'; }, 1500);
+      }
+    };
+
+    async function refreshTcpStatus() {
+      try {
+        const r = await fetch(API_BASE + '/api/tcp-status');
+        const d = await r.json();
+        const el = document.getElementById('tcpStatus');
+        if (d.connected > 0) {
+          el.className = 'tcp-status connected';
+          el.querySelector('span:last-child').textContent = d.connected + ' 个客户端已连接';
+        } else {
+          el.className = 'tcp-status disconnected';
+          el.querySelector('span:last-child').textContent = '未检测到客户端';
+        }
+      } catch (_) {}
+    }
+    refreshTcpStatus();
+    setInterval(refreshTcpStatus, 2000);
+
+    let _lastUeMsgTs = 0;
+    async function pollUeMessagesForPersuade() {
+      try {
+        const r = await fetch(API_BASE + '/api/ue-messages?limit=10');
+        const d = await r.json();
+        const list = d.messages || [];
+        let persuadeMsg = null;
+        let maxTs = _lastUeMsgTs;
+        for (const m of list) {
+          maxTs = Math.max(maxTs, m.ts || 0);
+          const mt = String(m.type || m.source || '').toLowerCase();
+          if (mt === 'persuade' && m.data && (!persuadeMsg || (m.ts || 0) > (persuadeMsg.ts || 0)))
+            persuadeMsg = m;
+        }
+        if (persuadeMsg && (persuadeMsg.ts || 0) > _lastUeMsgTs) {
+          const payload = (persuadeMsg.data.Type || persuadeMsg.data.Code)
+            ? persuadeMsg.data
+            : { Type: PAGE_TYPE, Code: persuadeMsg.data || {} };
+          document.getElementById('ueJsonInput').value = JSON.stringify(payload, null, 2);
+        }
+        _lastUeMsgTs = maxTs;
+      } catch (_) {}
+    }
+    setInterval(pollUeMessagesForPersuade, 3000);
+  </script>
+</body>
+</html>

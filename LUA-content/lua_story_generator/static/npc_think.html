@@ -1,0 +1,465 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>NPC 思考</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500&family=Noto+Sans+SC:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg-deep: #0d1117;
+      --bg-card: #161b22;
+      --bg-input: #21262d;
+      --border: #30363d;
+      --text: #e6edf3;
+      --text-muted: #8b949e;
+      --accent: #58a6ff;
+      --accent-hover: #79b8ff;
+      --success: #3fb950;
+      --error: #f85149;
+    }
+    * { box-sizing: border-box; }
+    body { margin: 0; background: var(--bg-deep); color: var(--text); font-family: 'Noto Sans SC', sans-serif; min-height: 100vh; line-height: 1.6; }
+    .container { max-width: 960px; margin: 0 auto; padding: 2rem; }
+    header { text-align: center; margin-bottom: 2rem; padding-bottom: 1.5rem; border-bottom: 1px solid var(--border); }
+    h1 { font-size: 1.5rem; font-weight: 600; margin: 0 0 0.5rem 0; }
+    .subtitle { color: var(--text-muted); font-size: 0.9rem; }
+    .nav-links { margin: 0.5rem 0; font-size: 0.9rem; }
+    .nav-links a { margin: 0 0.5rem; }
+    .card { background: var(--bg-card); border: 1px solid var(--border); border-radius: 12px; padding: 1.5rem; margin-bottom: 1.5rem; }
+    .card h2 { font-size: 1rem; font-weight: 600; margin: 0 0 1rem 0; }
+    label { display: block; font-size: 0.85rem; margin-bottom: 0.5rem; color: var(--text-muted); }
+    input, textarea, select { width: 100%; padding: 0.6rem 1rem; background: var(--bg-input); border: 1px solid var(--border); border-radius: 8px; color: var(--text); font-family: inherit; }
+    textarea { min-height: 100px; resize: vertical; font-family: 'JetBrains Mono', monospace; font-size: 0.85rem; }
+    .btn { display: inline-flex; align-items: center; padding: 0.6rem 1.2rem; font-size: 0.9rem; font-weight: 500; border: none; border-radius: 8px; cursor: pointer; font-family: inherit; }
+    .btn-primary { background: var(--accent); color: #fff; }
+    .btn-primary:hover { background: var(--accent-hover); }
+    .btn-sm { padding: 0.4rem 0.8rem; font-size: 0.8rem; }
+    .output-block { background: var(--bg-deep); border: 1px solid var(--border); border-radius: 8px; padding: 1rem; margin-top: 0.5rem; max-height: 300px; overflow-y: auto; white-space: pre-wrap; font-family: 'JetBrains Mono', monospace; font-size: 0.85rem; }
+    .row { display: flex; gap: 1rem; flex-wrap: wrap; align-items: flex-end; }
+    .row .field { flex: 1; min-width: 120px; }
+    .tcp-status { display: inline-flex; align-items: center; gap: 0.5rem; padding: 0.35rem 0.75rem; border-radius: 20px; font-size: 0.85rem; }
+    .tcp-status.connected { background: rgba(63, 185, 80, 0.2); color: var(--success); }
+    .tcp-status.disconnected { background: var(--bg-input); color: var(--text-muted); }
+    a { color: var(--accent); text-decoration: none; }
+    a:hover { text-decoration: underline; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <header>
+      <p style="margin: 0 0 0.5rem 0;"><a href="/">← 返回 LUA 奇遇脚本生成器</a></p>
+      <h1>NPC 思考</h1>
+      <p class="subtitle">根据 NPCInfo + TagList 生成表演/演绎 LUA（Say 头顶气泡 + 动画）</p>
+      <p class="nav-links"><a href="/npc-dialogue">→ NPC 对话</a><a href="/npc-persuade">→ NPC 说服</a></p>
+      <div id="tcpStatus" class="tcp-status disconnected">
+        <span class="dot" style="width:6px;height:6px;border-radius:50%;background:currentColor;"></span>
+        <span>未检测到客户端</span>
+      </div>
+    </header>
+
+    <div class="card">
+      <h2>🔑 API Key</h2>
+      <input type="password" id="apiKey" placeholder="sk-..." autocomplete="off">
+    </div>
+
+    <div class="card">
+      <h2>📥 输入 JSON（Type + Code + AdditionalContent）</h2>
+      <p style="font-size: 0.85rem; color: var(--text-muted); margin-bottom: 0.5rem;">
+        Type、Code、AdditionalContent 三者同级。Code 仅含 NPCInfo；AdditionalContent 为 TagList。
+      </p>
+      <textarea id="ueJsonInput" placeholder='{"Type":"NPC_Think_Begin","Code":{"NPCInfo":{"Personality":{"Extraversion":70},"Goals":{"ShortTerm":"放松休息"}}},"AdditionalContent":[{"UID":"prop_drink","Tags":["drink"]}]}'></textarea>
+      <div style="display: flex; gap: 0.5rem; margin-top: 0.5rem;">
+        <button class="btn btn-primary btn-sm" id="parseJson">解析并填充</button>
+        <button class="btn btn-primary btn-sm" id="aiGenerate">AI 生成 LUA</button>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>✏️ 手动构建</h2>
+      <p style="font-size: 0.85rem; color: var(--text-muted); margin-bottom: 0.75rem;">思考模式：Say、动画、<strong>World / Time / 移动</strong>（走向道具：取位 → MoveTo → Wait → Say）</p>
+      <div class="row" style="margin-bottom: 0.75rem;">
+        <div class="field" style="min-width: 300px;">
+          <label>函数</label>
+          <select id="funcSelect">
+            <option value="Say">_self_:Say(Text) — 头顶气泡</option>
+            <option value="PlayAnim">_self_:PlayAnim(AnimName) — 一次性手势</option>
+            <option value="PlayAnimLoop">_self_:PlayAnimLoop(AnimName, Time) — 持续状态</option>
+            <option value="WorldWait">World.Wait(sec)</option>
+            <option value="UIToast">UI.Toast(text)</option>
+            <option value="SayTime">Say + Time.GetTimeString() — 报时</option>
+            <option value="MoveTo">_self_:MoveTo({X,Y,Z})</option>
+            <option value="MoveToActorUid">MoveToActor(GetByID UID)</option>
+            <option value="LookAtUid">LookAt(GetByID UID)</option>
+            <option value="LookAtPlayer">LookAt(Player) 块</option>
+            <option value="ApproachPlayer">ApproachAndSay(Player, 台词)</option>
+            <option value="PreamblePlayer">插入块：获取 Player + IsValid</option>
+          </select>
+        </div>
+        <div class="field" id="sayParam" style="min-width: 200px;">
+          <label id="sayParamLabel">台词 Text</label>
+          <input type="text" id="sayText" placeholder="例如：免费的啤酒，太好了！">
+        </div>
+        <div class="field" id="animParams" style="display: none;">
+          <label>AnimName</label>
+          <select id="animSelect"></select>
+        </div>
+        <div class="field" id="timeParam" style="display: none; min-width: 80px;">
+          <label>Time</label>
+          <input type="number" id="animTime" value="0" step="0.5" min="0" placeholder="0">
+        </div>
+        <div class="field" id="worldWaitField" style="display: none; max-width: 120px;">
+          <label>秒</label>
+          <input type="number" id="worldWaitSec" value="0.5" step="0.1" min="0">
+        </div>
+        <div class="field" id="uiToastField" style="display: none; min-width: 180px;">
+          <label>Toast 文案</label>
+          <input type="text" id="uiToastText" placeholder="">
+        </div>
+        <div class="field" id="actorUidField" style="display: none; min-width: 160px;">
+          <label>目标 UID</label>
+          <input type="text" id="actorUid" placeholder="Prop_Stage / Bar_01">
+        </div>
+        <div class="field" id="moveXYZFields" style="display: none;">
+          <label>X / Y / Z</label>
+          <div style="display: flex; gap: 0.35rem;">
+            <input type="number" id="moveX" value="0" step="1" style="min-width:0;">
+            <input type="number" id="moveY" value="0" step="1" style="min-width:0;">
+            <input type="number" id="moveZ" value="0" step="1" style="min-width:0;">
+          </div>
+        </div>
+        <div class="field">
+          <label>&nbsp;</label>
+          <button class="btn btn-primary btn-sm" id="addLine">添加</button>
+        </div>
+      </div>
+      <p id="sayTimeHint" style="display: none; font-size: 0.8rem; color: var(--text-muted); margin: 0 0 0.5rem 0;">报时：可填前缀；空则「现在是 」+ Time.GetTimeString()</p>
+      <div id="manualLines" style="font-family: 'JetBrains Mono', monospace; font-size: 0.85rem; margin-top: 0.5rem;"></div>
+    </div>
+
+    <div class="card">
+      <h2>📤 生成结果</h2>
+      <textarea id="luaOutput" class="output-block" style="min-height: 120px;" placeholder="AI 生成或手动构建的 LUA 将显示在此..."></textarea>
+      <div style="display: flex; gap: 0.5rem; margin-top: 0.75rem;">
+        <button class="btn btn-primary" id="sendToUE">发送到 UE</button>
+        <button class="btn btn-primary btn-sm" id="copyLua">复制</button>
+      </div>
+      <p id="sendStatus" style="font-size: 0.85rem; margin-top: 0.5rem; color: var(--text-muted);"></p>
+    </div>
+  </div>
+
+  <script>
+    const API_BASE = window.location.origin;
+    const STORAGE_KEY = 'lua_gen_api_key';
+
+    let manualLuaLines = [];
+    let animationsPlay = [];
+    let animationsLoop = [];
+    const PAGE_TYPE = 'NPC_Think_Begin';
+    const RESPONSE_TYPE = 'NPC_Think_End';
+
+    document.getElementById('apiKey').value = localStorage.getItem(STORAGE_KEY) || '';
+    (async function syncApiKeyOnLoad() {
+      const k = localStorage.getItem(STORAGE_KEY) || document.getElementById('apiKey').value.trim();
+      if (k) try { await fetch(API_BASE + '/api/api-key', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ api_key: k }) }); } catch (_) {}
+    })();
+
+    (function tryFillFromUE() {
+      try {
+        const raw = sessionStorage.getItem('ue_pending_think');
+        if (raw) {
+          sessionStorage.removeItem('ue_pending_think');
+          const payload = JSON.parse(raw);
+          document.getElementById('ueJsonInput').value = JSON.stringify(payload, null, 2);
+        }
+      } catch (_) {}
+    })();
+
+    function refreshManualDisplay() {
+      const s = manualLuaLines.join('\n');
+      document.getElementById('manualLines').textContent = s;
+      document.getElementById('luaOutput').value = s;
+    }
+    function pushLuaLines() {
+      for (let i = 0; i < arguments.length; i++) {
+        const a = arguments[i];
+        const lines = typeof a === 'string' ? a.split('\n') : (Array.isArray(a) ? a : [String(a)]);
+        lines.forEach(function(ln) { if (String(ln).trim()) manualLuaLines.push(String(ln)); });
+      }
+      refreshManualDisplay();
+    }
+
+    document.getElementById('funcSelect').onchange = function() {
+      const v = this.value;
+      document.getElementById('sayParam').style.display = (v === 'Say' || v === 'SayTime' || v === 'ApproachPlayer') ? 'block' : 'none';
+      document.getElementById('sayTimeHint').style.display = v === 'SayTime' ? 'block' : 'none';
+      document.getElementById('sayParamLabel').textContent =
+        v === 'SayTime' ? '台词前缀（可空）' : (v === 'ApproachPlayer' ? '靠近玩家时说的台词' : '台词 Text');
+      document.getElementById('animParams').style.display = (v === 'PlayAnim' || v === 'PlayAnimLoop') ? 'block' : 'none';
+      document.getElementById('timeParam').style.display = v === 'PlayAnimLoop' ? 'block' : 'none';
+      document.getElementById('worldWaitField').style.display = v === 'WorldWait' ? 'block' : 'none';
+      document.getElementById('uiToastField').style.display = v === 'UIToast' ? 'block' : 'none';
+      document.getElementById('actorUidField').style.display = (v === 'MoveToActorUid' || v === 'LookAtUid') ? 'block' : 'none';
+      document.getElementById('moveXYZFields').style.display = v === 'MoveTo' ? 'block' : 'none';
+      updateAnimSelect();
+    };
+
+    function updateAnimSelect() {
+      const fn = document.getElementById('funcSelect').value;
+      const list = (fn === 'PlayAnimLoop' ? animationsLoop : animationsPlay);
+      const sel = document.getElementById('animSelect');
+      const opts = (list || []).length ? (list || []).map(a => '<option value="' + a + '">' + a + '</option>').join('')
+        : '<option value="">（无，请检查 DataTable 路径）</option>';
+      sel.innerHTML = opts;
+    }
+    async function loadAnimations() {
+      try {
+        const r = await fetch(API_BASE + '/api/resources');
+        const d = await r.json();
+        animationsPlay = d.animations_play || [];
+        animationsLoop = d.animations_loop || [];
+        updateAnimSelect();
+      } catch (_) {
+        animationsPlay = [];
+        animationsLoop = [];
+        updateAnimSelect();
+      }
+    }
+    loadAnimations();
+
+    document.getElementById('addLine').onclick = function() {
+      const fn = document.getElementById('funcSelect').value;
+      const esc = function(s) { return String(s).replace(/"/g, '\\"'); };
+      if (fn === 'Say') {
+        const t = document.getElementById('sayText').value.trim();
+        if (!t) { alert('请输入台词'); return; }
+        pushLuaLines(`_self_:Say("${esc(t)}")`);
+      } else if (fn === 'PlayAnim') {
+        const anim = document.getElementById('animSelect').value.trim();
+        if (!anim) { alert('请先加载 DataTable 或选择动画'); return; }
+        pushLuaLines(`_self_:PlayAnim("${esc(anim)}")`);
+      } else if (fn === 'PlayAnimLoop') {
+        const anim = document.getElementById('animSelect').value.trim();
+        const time = document.getElementById('animTime').value || '0';
+        if (!anim) { alert('请先加载 DataTable 或选择动画'); return; }
+        pushLuaLines(`_self_:PlayAnimLoop("${esc(anim)}", ${time})`);
+      } else if (fn === 'WorldWait') {
+        const sec = document.getElementById('worldWaitSec').value || '0.5';
+        pushLuaLines(`World.Wait(${sec})`);
+      } else if (fn === 'UIToast') {
+        const t = document.getElementById('uiToastText').value.trim();
+        if (!t) { alert('请输入 Toast 文案'); return; }
+        pushLuaLines(`UI.Toast("${esc(t)}")`);
+      } else if (fn === 'SayTime') {
+        const prefix = document.getElementById('sayText').value.trim();
+        if (prefix)
+          pushLuaLines(`_self_:Say("${esc(prefix)}" .. Time.GetTimeString())`);
+        else
+          pushLuaLines('_self_:Say("现在是 " .. Time.GetTimeString())');
+      } else if (fn === 'MoveTo') {
+        const x = document.getElementById('moveX').value || '0';
+        const y = document.getElementById('moveY').value || '0';
+        const z = document.getElementById('moveZ').value || '0';
+        pushLuaLines(`local _r = _self_:MoveTo({X=${x},Y=${y},Z=${z}})`);
+      } else if (fn === 'MoveToActorUid') {
+        const uid = document.getElementById('actorUid').value.trim();
+        if (!uid) { alert('请输入目标 UID'); return; }
+        pushLuaLines(
+          `local _target = World.GetByID("${esc(uid)}")`,
+          'if _target and _target:IsValid() then',
+          '  local _r = _self_:MoveToActor(_target)',
+          '  World.Wait(0.5)',
+          'end'
+        );
+      } else if (fn === 'LookAtUid') {
+        const uid = document.getElementById('actorUid').value.trim();
+        if (!uid) { alert('请输入目标 UID'); return; }
+        pushLuaLines(
+          `local _t = World.GetByID("${esc(uid)}")`,
+          'if _t and _t:IsValid() then _self_:LookAt(_t) end'
+        );
+      } else if (fn === 'LookAtPlayer') {
+        pushLuaLines(
+          'local player = World.GetByID("Player")',
+          'if player and player:IsValid() then _self_:LookAt(player) end'
+        );
+      } else if (fn === 'ApproachPlayer') {
+        const t = document.getElementById('sayText').value.trim();
+        if (!t) { alert('请输入台词'); return; }
+        pushLuaLines(
+          'local player = World.GetByID("Player")',
+          'if player and player:IsValid() then',
+          `  _self_:ApproachAndSay(player, "${esc(t)}")`,
+          'end'
+        );
+      } else if (fn === 'PreamblePlayer') {
+        pushLuaLines(
+          'local player = World.GetByID("Player")',
+          'if not player or not player:IsValid() then return end'
+        );
+      }
+    };
+
+    /** 递归解析并展开：若 Code/code 为字符串则 parse 成对象，将嵌套的 JSON 字符串转为真实对象 */
+    function parseAndUnescapeJson(raw) {
+      if (!raw || typeof raw !== 'string') return null;
+      let text = raw.trim();
+      let j;
+      try {
+        j = JSON.parse(text);
+      } catch (e1) {
+        try {
+          const inner = JSON.parse(text);
+          if (typeof inner === 'string') j = JSON.parse(inner);
+          else throw e1;
+        } catch (e2) {
+          throw e1;
+        }
+      }
+      const codeKey = j.Code !== undefined ? 'Code' : (j.code !== undefined ? 'code' : null);
+      if (codeKey && typeof j[codeKey] === 'string') {
+        try {
+          j[codeKey] = parseAndUnescapeJson(j[codeKey]);
+        } catch (_) {}
+      }
+      return j;
+    }
+
+    document.getElementById('parseJson').onclick = function() {
+      const raw = document.getElementById('ueJsonInput').value.trim();
+      if (!raw) return;
+      try {
+        const j = parseAndUnescapeJson(raw);
+        document.getElementById('ueJsonInput').value = JSON.stringify(j, null, 2);
+      } catch (e) {
+        alert('JSON 解析失败: ' + e.message);
+      }
+    };
+
+    document.getElementById('aiGenerate').onclick = async function() {
+      const apiKey = document.getElementById('apiKey').value.trim();
+      if (!apiKey) { alert('请输入 API Key'); return; }
+      localStorage.setItem(STORAGE_KEY, apiKey);
+      try { await fetch(API_BASE + '/api/api-key', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ api_key: apiKey }) }); } catch (_) {}
+
+      let codeVal = null;
+      let addContent = undefined;
+      const raw = document.getElementById('ueJsonInput').value.trim();
+      if (raw) {
+        let j = null;
+        try { j = parseAndUnescapeJson(raw); } catch (_) { try { j = JSON.parse(raw); } catch (__) {} }
+        if (j) {
+          codeVal = j.Code || j.code || null;
+          if (!codeVal && (j.NPCInfo || j.TagList !== undefined)) {
+            codeVal = {
+              NPCInfo: j.NPCInfo || {},
+              TagList: j.TagList || []
+            };
+          }
+          addContent = j.AdditionalContent || j.Additional_content;
+        }
+      }
+
+      const btn = this;
+      btn.disabled = true;
+      btn.textContent = '生成中...';
+      try {
+        const r = await fetch(API_BASE + '/api/npc-interaction/generate', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            Type: PAGE_TYPE,
+            Code: codeVal,
+            'AdditionalContent': addContent,
+            api_key: apiKey,
+          }),
+        });
+        const d = await r.json();
+        if (!r.ok) throw new Error(d.detail || '生成失败');
+        document.getElementById('luaOutput').value = d.lua || d.Code || '';
+        manualLuaLines = (d.lua || d.Code || '').split('\n').filter(Boolean);
+        document.getElementById('manualLines').textContent = manualLuaLines.join('\n');
+      } catch (e) {
+        alert('生成失败: ' + e.message);
+      }
+      btn.disabled = false;
+      btn.textContent = 'AI 生成 LUA';
+    };
+
+    document.getElementById('sendToUE').onclick = async function() {
+      const code = document.getElementById('luaOutput').value.trim();
+      if (!code) { alert('请先生成或输入 LUA'); return; }
+      const status = document.getElementById('sendStatus');
+      try {
+        const r = await fetch(API_BASE + '/api/send-to-unreal', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ type: RESPONSE_TYPE, code: code }),
+        });
+        const d = await r.json();
+        if (r.ok && d.sent_to > 0) {
+          status.textContent = '已发送到 ' + d.sent_to + ' 个客户端';
+          status.style.color = 'var(--success)';
+        } else {
+          status.textContent = '未连接 UE 或发送失败';
+          status.style.color = 'var(--error)';
+        }
+      } catch (e) {
+        status.textContent = '发送失败: ' + e.message;
+        status.style.color = 'var(--error)';
+      }
+    };
+
+    document.getElementById('copyLua').onclick = function() {
+      const code = document.getElementById('luaOutput').value;
+      if (code) {
+        navigator.clipboard.writeText(code);
+        this.textContent = '已复制';
+        setTimeout(() => { this.textContent = '复制'; }, 1500);
+      }
+    };
+
+    async function refreshTcpStatus() {
+      try {
+        const r = await fetch(API_BASE + '/api/tcp-status');
+        const d = await r.json();
+        const el = document.getElementById('tcpStatus');
+        if (d.connected > 0) {
+          el.className = 'tcp-status connected';
+          el.querySelector('span:last-child').textContent = d.connected + ' 个客户端已连接';
+        } else {
+          el.className = 'tcp-status disconnected';
+          el.querySelector('span:last-child').textContent = '未检测到客户端';
+        }
+      } catch (_) {}
+    }
+    refreshTcpStatus();
+    setInterval(refreshTcpStatus, 2000);
+
+    let _lastUeMsgTs = 0;
+    async function pollUeMessagesForThink() {
+      try {
+        const r = await fetch(API_BASE + '/api/ue-messages?limit=10');
+        const d = await r.json();
+        const list = d.messages || [];
+        let thinkingMsg = null;
+        let maxTs = _lastUeMsgTs;
+        for (const m of list) {
+          maxTs = Math.max(maxTs, m.ts || 0);
+          const mt = String(m.type || m.source || '').toLowerCase();
+          if ((mt === 'thinking' || mt === 'think') && m.data && (!thinkingMsg || (m.ts || 0) > (thinkingMsg.ts || 0)))
+            thinkingMsg = m;
+        }
+        if (thinkingMsg && (thinkingMsg.ts || 0) > _lastUeMsgTs) {
+          const payload = (thinkingMsg.data.Type || thinkingMsg.data.Code) ? thinkingMsg.data : { Type: 'NPC_Think_Begin', Code: thinkingMsg.data || {} };
+          document.getElementById('ueJsonInput').value = JSON.stringify(payload, null, 2);
+        }
+        _lastUeMsgTs = maxTs;
+      } catch (_) {}
+    }
+    setInterval(pollUeMessagesForThink, 3000);
+  </script>
+</body>
+</html>

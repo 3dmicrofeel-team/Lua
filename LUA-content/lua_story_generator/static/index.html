@@ -1,0 +1,1347 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>LUA 奇遇脚本生成器</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500&family=Noto+Sans+SC:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg-deep: #0d1117;
+      --bg-card: #161b22;
+      --bg-input: #21262d;
+      --border: #30363d;
+      --text: #e6edf3;
+      --text-muted: #8b949e;
+      --accent: #58a6ff;
+      --accent-hover: #79b8ff;
+      --success: #3fb950;
+      --error: #f85149;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      background: var(--bg-deep);
+      color: var(--text);
+      font-family: 'Noto Sans SC', sans-serif;
+      min-height: 100vh;
+      line-height: 1.6;
+    }
+    .container {
+      max-width: 960px;
+      margin: 0 auto;
+      padding: 2rem;
+    }
+    header {
+      text-align: center;
+      margin-bottom: 2.5rem;
+      padding-bottom: 1.5rem;
+      border-bottom: 1px solid var(--border);
+    }
+    h1 {
+      font-size: 1.75rem;
+      font-weight: 600;
+      margin: 0 0 0.5rem 0;
+      background: linear-gradient(135deg, var(--accent), #a371f7);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+    }
+    .subtitle {
+      color: var(--text-muted);
+      font-size: 0.9rem;
+    }
+    .card {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 1.5rem;
+      margin-bottom: 1.5rem;
+    }
+    .card h2 {
+      font-size: 1rem;
+      font-weight: 600;
+      margin: 0 0 1rem 0;
+      color: var(--text);
+    }
+    label {
+      display: block;
+      font-size: 0.85rem;
+      font-weight: 500;
+      margin-bottom: 0.5rem;
+      color: var(--text-muted);
+    }
+    input[type="password"],
+    input[type="text"],
+    textarea,
+    select {
+      width: 100%;
+      padding: 0.75rem 1rem;
+      background: var(--bg-input);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      color: var(--text);
+      font-family: inherit;
+      font-size: 0.95rem;
+      transition: border-color 0.2s;
+    }
+    input:focus, textarea:focus, select:focus {
+      outline: none;
+      border-color: var(--accent);
+    }
+    textarea {
+      min-height: 120px;
+      resize: vertical;
+    }
+    .row {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+      gap: 1rem;
+    }
+    .row .field { margin-bottom: 0; }
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 0.5rem;
+      padding: 0.75rem 1.5rem;
+      font-size: 0.95rem;
+      font-weight: 500;
+      border: none;
+      border-radius: 8px;
+      cursor: pointer;
+      transition: background 0.2s, opacity 0.2s;
+      font-family: inherit;
+    }
+    .btn-primary {
+      background: var(--accent);
+      color: #fff;
+    }
+    .btn-primary:hover:not(:disabled) {
+      background: var(--accent-hover);
+    }
+    .btn:disabled {
+      opacity: 0.6;
+      cursor: not-allowed;
+    }
+    .btn-sm {
+      padding: 0.4rem 0.8rem;
+      font-size: 0.8rem;
+    }
+    .output-section {
+      margin-top: 1rem;
+    }
+    .output-block {
+      background: var(--bg-deep);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 1rem;
+      margin-top: 0.75rem;
+      max-height: 300px;
+      overflow-y: auto;
+      white-space: pre-wrap;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.85rem;
+      line-height: 1.5;
+    }
+    .output-block.large {
+      max-height: 400px;
+    }
+    .output-block.editable,
+    textarea.output-textarea {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.85rem;
+      line-height: 1.5;
+      white-space: pre-wrap;
+      resize: vertical;
+      min-height: 120px;
+    }
+    .tabs {
+      display: flex;
+      gap: 0.5rem;
+      margin-bottom: 1rem;
+      flex-wrap: wrap;
+    }
+    .tab {
+      padding: 0.5rem 1rem;
+      background: var(--bg-input);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: 0.9rem;
+      color: var(--text-muted);
+      transition: all 0.2s;
+    }
+    .tab:hover { color: var(--text); }
+    .tab.active {
+      background: var(--accent);
+      border-color: var(--accent);
+      color: #fff;
+    }
+    .file-list {
+      list-style: none;
+      padding: 0;
+      margin: 0;
+    }
+    .file-item {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0.6rem 1rem;
+      background: var(--bg-input);
+      border-radius: 6px;
+      margin-bottom: 0.5rem;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.9rem;
+    }
+    .file-item .actions {
+      display: flex;
+      gap: 0.5rem;
+    }
+    .spinner {
+      width: 20px;
+      height: 20px;
+      border: 2px solid var(--border);
+      border-top-color: var(--accent);
+      border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    .status {
+      font-size: 0.85rem;
+      color: var(--text-muted);
+      margin-top: 0.5rem;
+    }
+    .status.error { color: var(--error); }
+    .status.success { color: var(--success); }
+    .save-api-hint {
+      font-size: 0.8rem;
+      color: var(--text-muted);
+      margin-top: 0.35rem;
+    }
+    .save-api-hint a { color: var(--accent); cursor: pointer; }
+    .asset-section { margin-bottom: 1.25rem; }
+    .asset-section:last-child { margin-bottom: 0; }
+    .asset-section h3 { font-size: 0.9rem; margin: 0 0 0.5rem 0; color: var(--text-muted); }
+    .asset-list { display: flex; flex-wrap: wrap; gap: 0.35rem; margin-bottom: 0.5rem; }
+    .asset-tag {
+      display: inline-flex; align-items: center; gap: 0.25rem;
+      padding: 0.25rem 0.5rem; background: var(--bg-input); border-radius: 6px;
+      font-family: 'JetBrains Mono', monospace; font-size: 0.8rem;
+    }
+    .asset-tag .del { cursor: pointer; color: var(--error); font-weight: bold; }
+    .asset-tag .del:hover { text-decoration: underline; }
+    .asset-add { display: flex; gap: 0.5rem; margin-top: 0.5rem; }
+    .asset-add input { flex: 1; }
+    .asset-save-status { font-size: 0.8rem; color: var(--text-muted); margin-top: 0.5rem; }
+    .asset-count { font-weight: normal; color: var(--text-muted); font-size: 0.85em; }
+    .asset-list-readonly .asset-tag .del { display: none; }
+    .resource-detail-table { width: 100%; font-size: 0.85rem; border-collapse: collapse; }
+    .resource-detail-table th, .resource-detail-table td { padding: 0.4rem 0.6rem; text-align: left; border-bottom: 1px solid var(--border); }
+    .resource-detail-table th { color: var(--text-muted); }
+    .assets-details { margin: 0; }
+    .assets-details[open] .assets-toggle-hint { display: none; }
+    .assets-summary { cursor: pointer; list-style: none; padding: 0; }
+    .assets-summary::-webkit-details-marker { display: none; }
+    .assets-summary::before { content: '▶ '; font-size: 0.75rem; color: var(--accent); }
+    .assets-details[open] .assets-summary::before { content: '▼ '; }
+    .assets-content { margin-top: 1rem; }
+    .tcp-status {
+      display: inline-flex; align-items: center; gap: 0.5rem;
+      padding: 0.35rem 0.75rem; border-radius: 20px;
+      font-size: 0.85rem; margin-top: 0.75rem;
+    }
+    .tcp-status.connected { background: rgba(63, 185, 80, 0.2); color: var(--success); }
+    .tcp-status.disconnected { background: var(--bg-input); color: var(--text-muted); }
+    .tcp-status .dot { width: 6px; height: 6px; border-radius: 50%; }
+    .tcp-status.connected .dot { background: var(--success); }
+    .tcp-status.disconnected .dot { background: var(--text-muted); }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <header>
+      <h1>LUA 奇遇脚本生成器</h1>
+      <p class="subtitle">输入自然语言故事，多 Agent AI 自动生成符合规则的 LUA 奇遇脚本</p>
+      <div style="margin-top: 1rem; display: flex; gap: 0.75rem; justify-content: center; flex-wrap: wrap;">
+        <a href="/npc-think" class="btn btn-primary" style="text-decoration: none;">NPC 思考</a>
+        <a href="/npc-dialogue" class="btn btn-primary" style="text-decoration: none;">NPC 对话</a>
+        <a href="/npc-persuade" class="btn btn-primary" style="text-decoration: none;">NPC 说服</a>
+      </div>
+      <div id="tcpStatus" class="tcp-status disconnected">
+        <span class="dot"></span>
+        <span>未检测到客户端</span>
+      </div>
+    </header>
+
+    <div class="card">
+      <h2>🔑 API 配置</h2>
+      <label>OpenAI API Key</label>
+      <input type="password" id="apiKey" placeholder="sk-..." autocomplete="off">
+      <p class="save-api-hint">
+        <a id="toggleSave">保存到本地</a> · 仅存于浏览器，不会上传
+      </p>
+    </div>
+
+    <div class="card">
+      <details class="assets-details">
+        <summary class="assets-summary">
+          <h2 style="margin: 0; display: inline;">📦 素材库</h2>
+          <span class="assets-toggle-hint" style="font-size: 0.85rem; color: var(--text-muted); margin-left: 0.5rem;">点击展开/收起</span>
+        </summary>
+        <div class="assets-content">
+      <p style="font-size: 0.85rem; color: var(--text-muted); margin-bottom: 1rem;">
+        素材从 DataTable CSV 加载，策划修改表格后刷新页面即可生效。生成代码仅使用素材库内的 ID。
+      </p>
+      <p id="datatableHint" class="datatable-hint" style="font-size: 0.8rem; color: var(--text-muted); margin-bottom: 1rem;"></p>
+      <div class="asset-section">
+        <h3>NPC 类型 <span class="asset-count" id="npcCount"></span></h3>
+        <div class="asset-list asset-list-readonly" id="assetListNpc"></div>
+      </div>
+      <div class="asset-section">
+        <h3>Enemy 类型 <span class="asset-count" id="enemyCount"></span></h3>
+        <div class="asset-list asset-list-readonly" id="assetListEnemy"></div>
+      </div>
+      <div class="asset-section">
+        <h3>Prop 类型 <span class="asset-count" id="propCount"></span></h3>
+        <div class="asset-list asset-list-readonly" id="assetListProp"></div>
+      </div>
+      <div class="asset-section">
+        <h3>Item 类型（奖励道具）<span class="asset-count" id="itemCount"></span></h3>
+        <div class="asset-list asset-list-readonly" id="assetListItem"></div>
+        <p style="font-size: 0.8rem; color: var(--text-muted); margin-top: 0.25rem;">npc:GiveItem / GiveWeapon / GiveEquip 仅可使用此处列出的 ID</p>
+      </div>
+      <details class="resource-details" style="margin-top: 1rem;">
+        <summary style="cursor: pointer; color: var(--accent); font-size: 0.9rem;">展开查看资源详情（含描述）</summary>
+        <div id="resourceDetailContent" style="margin-top: 0.75rem;"></div>
+      </details>
+      <div class="asset-section" style="margin-top: 1rem;">
+        <h3>MiniGame 类型（可编辑）</h3>
+        <div class="asset-list" id="assetListMinigame"></div>
+        <div class="asset-add">
+          <input type="text" id="assetInputMinigame" placeholder="例如 TTT">
+          <button class="btn btn-sm btn-primary" id="assetAddMinigame">添加</button>
+        </div>
+        <p style="font-size: 0.8rem; color: var(--text-muted); margin-top: 0.25rem;">UI.PlayMiniGame(gameType, lv) 的 gameType，仅可使用此处列出的 ID</p>
+      </div>
+      <div style="display: flex; align-items: center; gap: 1rem; margin-top: 1rem;">
+        <button class="btn btn-primary" id="assetSaveBtn">保存 MiniGame 设置</button>
+        <span class="asset-save-status" id="assetSaveStatus"></span>
+      </div>
+        </div>
+      </details>
+    </div>
+
+    <div class="card">
+      <h2>📖 输入故事</h2>
+      <div style="display: flex; gap: 1rem; align-items: center; margin-bottom: 0.5rem;">
+        <label style="margin: 0;">故事模式</label>
+        <select id="storyMode">
+          <option value="expand" selected>扩写</option>
+          <option value="continue">续写</option>
+        </select>
+        <span id="storyModeHint" style="font-size: 0.85rem; color: var(--text-muted);">输入自然语言梗概，AI 扩写为完整剧本</span>
+      </div>
+      <textarea id="storyInput" placeholder="例如：玩家在酒馆门口遇到一个醉汉，醉汉请求帮忙找失落的戒指。如果答应，要去北边森林打败蜘蛛得到戒指，回来交给他可获得一把剑。如果不答应，醉汉会失落离开。"></textarea>
+    </div>
+
+    <div class="card">
+      <h2>⚙️ 模型选择</h2>
+      <div class="row">
+        <div class="field">
+          <label>故事扩写</label>
+          <select id="storyModel">
+            <option value="gpt-4.1">GPT 4.1</option>
+            <option value="gpt-5.1">GPT 5.1</option>
+          </select>
+        </div>
+        <div class="field">
+          <label>规划步骤</label>
+          <select id="planningModel">
+            <option value="gpt-4.1">GPT 4.1</option>
+            <option value="gpt-5.1">GPT 5.1</option>
+          </select>
+        </div>
+        <div class="field">
+          <label>代码生成</label>
+          <select id="codingModel">
+            <option value="gpt-4.1">GPT 4.1</option>
+            <option value="gpt-5.1">GPT 5.1</option>
+            <option value="gpt-5.1-codex-max" selected>Codex (gpt-5.1-codex-max)</option>
+            <option value="gpt-5.2-codex">Codex (gpt-5.2-codex)</option>
+          </select>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <button class="btn btn-primary" id="generateBtn">
+        <span id="btnText">生成 LUA 脚本</span>
+      </button>
+      <p class="status" id="status"></p>
+    </div>
+
+    <div class="card" id="outputCard">
+      <h2>📄 生成结果</h2>
+      <div class="tabs">
+        <button class="tab" data-tab="story">扩写故事</button>
+        <button class="tab" data-tab="plan">规划步骤</button>
+        <button class="tab active" data-tab="stages">按阶段</button>
+        <button class="tab" data-tab="files">LUA 文件</button>
+        <button class="tab" data-tab="npcmap">NPC 地图</button>
+        <button class="tab" data-tab="full">总拼装脚本</button>
+      </div>
+
+      <div id="tab-story" class="tab-content" style="display: none;">
+        <p style="font-size: 0.9rem; color: var(--text-muted); margin-bottom: 0.5rem;">AI 扩写后的故事，可编辑。</p>
+        <textarea class="output-block large output-textarea" id="expandedStory" placeholder="生成后将在此显示扩写故事，也可手动输入或编辑..."></textarea>
+      </div>
+      <div id="tab-plan" class="tab-content" style="display: none;">
+        <p style="font-size: 0.9rem; color: var(--text-muted); margin-bottom: 0.5rem;">规划步骤，可编辑。</p>
+        <textarea class="output-block large output-textarea" id="planOutput" placeholder="生成后将在此显示规划步骤，也可手动输入或编辑..."></textarea>
+      </div>
+      <div id="tab-stages" class="tab-content">
+        <p style="font-size: 0.9rem; color: var(--text-muted); margin-bottom: 0.75rem;">按 Type 分段的 LUA 命令，可编辑后单独复制、发送或下载。未生成时也可手动填入并发送。</p>
+        <div id="stagesList">
+          <div class="card" style="margin-bottom: 1rem;">
+            <h3 style="font-size: 0.95rem; margin: 0 0 0.5rem 0;">InitMap（初始化地图）</h3>
+            <div style="display: flex; gap: 0.5rem; margin-bottom: 0.5rem;">
+              <button type="button" class="btn btn-sm btn-primary stage-copy" data-type="InitMap">复制</button>
+              <button type="button" class="btn btn-sm btn-primary stage-send" data-type="InitMap">发送到 Unreal</button>
+              <button type="button" class="btn btn-sm btn-primary stage-download" data-type="InitMap">下载</button>
+            </div>
+            <textarea class="output-block large output-textarea stage-code" data-type="InitMap" placeholder="在此输入或粘贴 InitMap 的 LUA 代码，或等待生成后自动填充..." style="max-height: 280px;"></textarea>
+          </div>
+          <div class="card" style="margin-bottom: 1rem;">
+            <h3 style="font-size: 0.95rem; margin: 0 0 0.5rem 0;">InitEvent（初始化奇遇）</h3>
+            <div style="display: flex; gap: 0.5rem; margin-bottom: 0.5rem;">
+              <button type="button" class="btn btn-sm btn-primary stage-copy" data-type="InitEvent">复制</button>
+              <button type="button" class="btn btn-sm btn-primary stage-send" data-type="InitEvent">发送到 Unreal</button>
+              <button type="button" class="btn btn-sm btn-primary stage-download" data-type="InitEvent">下载</button>
+            </div>
+            <textarea class="output-block large output-textarea stage-code" data-type="InitEvent" placeholder="在此输入或粘贴 InitEvent 的 LUA 代码，或等待生成后自动填充..." style="max-height: 280px;"></textarea>
+          </div>
+          <div class="card" style="margin-bottom: 1rem;">
+            <h3 style="font-size: 0.95rem; margin: 0 0 0.5rem 0;">StartGame（开始游戏）</h3>
+            <div style="display: flex; gap: 0.5rem; margin-bottom: 0.5rem;">
+              <button type="button" class="btn btn-sm btn-primary stage-copy" data-type="StartGame">复制</button>
+              <button type="button" class="btn btn-sm btn-primary stage-send" data-type="StartGame">发送到 Unreal</button>
+              <button type="button" class="btn btn-sm btn-primary stage-download" data-type="StartGame">下载</button>
+            </div>
+            <textarea class="output-block large output-textarea stage-code" data-type="StartGame" placeholder="在此输入或粘贴 StartGame 的 LUA 代码，或等待生成后自动填充..." style="max-height: 280px;"></textarea>
+          </div>
+          <div class="card" style="margin-bottom: 1rem;">
+            <h3 style="font-size: 0.95rem; margin: 0 0 0.5rem 0;">Restart（重启）</h3>
+            <p style="font-size: 0.85rem; color: var(--text-muted); margin: 0 0 0.5rem 0;">发送 type=restart、code 为空的 JSON 到 Unreal 客户端。</p>
+            <div style="display: flex; gap: 0.5rem;">
+              <button type="button" class="btn btn-sm btn-primary stage-send" data-type="restart">发送到 Unreal</button>
+            </div>
+            <textarea class="output-block large output-textarea stage-code" data-type="restart" style="display:none;"></textarea>
+          </div>
+        </div>
+        <div id="stagesListExtra"></div>
+      </div>
+      <div id="tab-files" class="tab-content" style="display: none;">
+        <ul class="file-list" id="fileList"></ul>
+        <div id="fileContentWrap" style="margin-top: 1rem; display: none;">
+          <label style="font-size: 0.85rem;">当前文件内容（可编辑）</label>
+          <textarea class="output-block large output-textarea" id="fileContent" style="max-height: 400px;" placeholder="选择文件后在此显示，可编辑..."></textarea>
+        </div>
+      </div>
+      <div id="tab-npcmap" class="tab-content" style="display: none;">
+        <p style="font-size: 0.9rem; color: var(--text-muted); margin-bottom: 0.75rem;">工作流：加载预设地图 → 指定奇遇触发点（★）→ 微调 NPC/Prop → 生成奇遇。奇遇将发生在你指定的位置。拖拽移动、Alt+点击添加 NPC、Shift+点击添加奇遇点。</p>
+        <details style="margin-bottom: 0.75rem;">
+          <summary style="cursor: pointer; color: var(--accent); font-size: 0.9rem;">直接粘贴 LUA 代码（未调用 AI 时使用）</summary>
+          <textarea id="npcMapPasteArea" class="output-block" placeholder="粘贴包含 World.SpawnNPC 或 Env.AddProp 的 LUA 代码，例如：&#10;World.SpawnNPC(&quot;Merchant_Male&quot;,&quot;stranger&quot;,{X=17800,Y=21800,Z=90})&#10;Env.AddProp(map,&quot;Prop_Fountain&quot;,{X=9900,Y=4300,Z=0},{Pitch=0,Yaw=0,Roll=0})" style="min-height: 80px; max-height: 120px; margin-top: 0.5rem; font-size: 0.85rem;"></textarea>
+          <button class="btn btn-sm btn-primary" id="npcMapLoadPaste" style="margin-top: 0.5rem;">从上方代码加载</button>
+        </details>
+        <div style="display: flex; gap: 1rem; flex-wrap: wrap; align-items: flex-start;">
+          <div style="flex: 1; min-width: 320px;">
+            <div style="display: flex; gap: 0.5rem; margin-bottom: 0.5rem; flex-wrap: wrap;">
+              <button class="btn btn-sm btn-primary" id="npcMapLoadPreset" style="background: var(--accent);">加载预设地图</button>
+              <button class="btn btn-sm btn-primary" id="npcMapLoad">从 InitMap 加载</button>
+              <button class="btn btn-sm btn-primary" id="npcMapAdd">添加 NPC</button>
+              <button class="btn btn-sm btn-primary" id="npcMapAddEncounter">添加奇遇点</button>
+              <button class="btn btn-sm btn-primary" id="npcMapDelete">删除选中</button>
+              <button class="btn btn-sm btn-primary" id="npcMapApply">应用回 InitMap</button>
+            </div>
+            <div style="position: relative; background: var(--bg-deep); border: 1px solid var(--border); border-radius: 8px; overflow: hidden;">
+              <canvas id="npcMapCanvas" width="600" height="500" style="display: block; cursor: crosshair;"></canvas>
+              <div id="npcMapHint" style="position: absolute; bottom: 8px; left: 8px; font-size: 0.75rem; color: var(--text-muted); pointer-events: none;"></div>
+            </div>
+          </div>
+          <div style="width: 220px;">
+            <h4 style="font-size: 0.9rem; margin: 0 0 0.5rem 0;">NPC 列表 <span id="npcMapCount">(0)</span></h4>
+            <div id="npcMapList" style="max-height: 400px; overflow-y: auto; font-size: 0.8rem;"></div>
+          </div>
+        </div>
+      </div>
+      <div id="tab-full" class="tab-content" style="display: none;">
+        <p style="font-size: 0.9rem; color: var(--text-muted); margin-bottom: 0.75rem;">以下为所有模块拼装后的完整 LUA 脚本，可编辑后复制或下载。</p>
+        <div style="display: flex; gap: 0.5rem; margin-bottom: 0.75rem;">
+          <button class="btn btn-sm btn-primary" id="copyFullScript">复制完整脚本</button>
+          <button class="btn btn-sm btn-primary" id="downloadFullScript">下载 Full_Script.lua</button>
+        </div>
+        <textarea class="output-block large output-textarea" id="fullScriptContent" style="max-height: 500px;" placeholder="生成后将在此显示完整拼装脚本，也可手动输入或编辑..."></textarea>
+      </div>
+    </div>
+
+    <div class="card" id="ueFeedbackCard">
+      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem;">
+        <h2 style="margin: 0;">📡 UE 端反馈</h2>
+        <button type="button" class="btn btn-sm btn-primary" id="ueFeedbackClear" style="font-size: 0.8rem;">清空</button>
+      </div>
+      <p style="font-size: 0.85rem; color: var(--text-muted); margin: 0 0 0.5rem 0;">UE 端发送 <code>{"Type":"...","Code":{...},"AdditionalContent":"..."}</code>（思考/对话/说服）时，会在此显示并提示跳转到对应页面。每 2 秒自动刷新。</p>
+      <div id="ueFeedbackList" style="max-height: 200px; overflow-y: auto; background: var(--bg-deep); border: 1px solid var(--border); border-radius: 8px; padding: 0.5rem; font-family: 'JetBrains Mono', monospace; font-size: 0.8rem;">
+        <div id="ueFeedbackPlaceholder" style="color: var(--text-muted);">暂无 UE 端反馈消息</div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const API_BASE = window.location.origin;
+    const STORAGE_KEY = 'lua_gen_api_key';
+
+    let assets = { npcs: [], enemies: [], props: [], items: [], minigames: [] };
+
+    function renderAssetList(containerId, list, key, readonly = false) {
+      const el = document.getElementById(containerId);
+      if (!el) return;
+      const delHtml = readonly ? '' : ' <span class="del" data-key="' + key + '" data-id="__ID__">×</span>';
+      el.innerHTML = (list || []).map(id => `<span class="asset-tag">${id}${delHtml.replace('__ID__', id)}</span>`).join('');
+      if (!readonly) {
+        el.querySelectorAll('.del').forEach(d => {
+          d.onclick = () => { assets[key] = assets[key].filter(x => x !== d.dataset.id); renderAssets(); saveAssetsSilent(); };
+        });
+      }
+    }
+
+    function renderAssets() {
+      renderAssetList('assetListNpc', assets.npcs, 'npcs', true);
+      renderAssetList('assetListEnemy', assets.enemies, 'enemies', true);
+      renderAssetList('assetListProp', assets.props, 'props', true);
+      renderAssetList('assetListItem', assets.items, 'items', true);
+      renderAssetList('assetListMinigame', assets.minigames || [], 'minigames', false);
+      document.getElementById('npcCount').textContent = assets.npcs.length ? `(${assets.npcs.length})` : '';
+      document.getElementById('enemyCount').textContent = assets.enemies.length ? `(${assets.enemies.length})` : '';
+      document.getElementById('propCount').textContent = assets.props.length ? `(${assets.props.length})` : '';
+      document.getElementById('itemCount').textContent = assets.items.length ? `(${assets.items.length})` : '';
+    }
+
+    async function loadAssets() {
+      try {
+        const res = await fetch(API_BASE + '/api/assets');
+        if (res.ok) assets = await res.json();
+      } catch (_) {}
+      renderAssets();
+      const hint = document.getElementById('datatableHint');
+      if (hint && assets.datatable_dir) {
+        hint.textContent = 'DataTable 路径: ' + assets.datatable_dir + ' （修改表格后刷新页面即可生效）';
+      }
+    }
+
+    async function saveAssetsSilent() {
+      try {
+        await fetch(API_BASE + '/api/assets', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ minigames: assets.minigames || [] }) });
+      } catch (_) {}
+    }
+
+    async function saveAssets() {
+      const status = document.getElementById('assetSaveStatus');
+      try {
+        const res = await fetch(API_BASE + '/api/assets', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ minigames: assets.minigames || [] }) });
+        if (res.ok) { status.textContent = '已保存'; status.style.color = 'var(--success)'; }
+        else { status.textContent = '保存失败'; status.style.color = 'var(--error)'; }
+      } catch (e) { status.textContent = '保存失败: ' + e.message; status.style.color = 'var(--error)'; }
+      setTimeout(() => status.textContent = '', 2000);
+    }
+
+    function addMinigame() {
+      const v = document.getElementById('assetInputMinigame').value.trim();
+      if (v && !(assets.minigames || []).includes(v)) {
+        assets.minigames = assets.minigames || [];
+        assets.minigames.push(v);
+        assets.minigames.sort();
+        renderAssets();
+        saveAssetsSilent();
+        document.getElementById('assetInputMinigame').value = '';
+      }
+    }
+    document.getElementById('assetAddMinigame').onclick = addMinigame;
+
+    function updateStoryModeUI() {
+      const mode = document.getElementById('storyMode')?.value || 'expand';
+      const hint = document.getElementById('storyModeHint');
+      const ta = document.getElementById('storyInput');
+      if (mode === 'continue') {
+        if (hint) hint.textContent = '粘贴前一章故事，AI 续写下一章（将自动读取「按阶段」中 InitEvent 的 NPC 信息）';
+        if (ta) ta.placeholder = '粘贴前一章的完整故事内容，AI 将基于此续写下一章。系统会自动读取上一幕 InitEvent 中的 NPC（id、resource、身份）供续写参考。';
+      } else {
+        if (hint) hint.textContent = '输入自然语言梗概，AI 扩写为完整剧本';
+        if (ta) ta.placeholder = '例如：玩家在酒馆门口遇到一个醉汉，醉汉请求帮忙找失落的戒指。如果答应，要去北边森林打败蜘蛛得到戒指，回来交给他可获得一把剑。如果不答应，醉汉会失落离开。';
+      }
+    }
+    document.getElementById('storyMode')?.addEventListener('change', updateStoryModeUI);
+    document.getElementById('assetInputMinigame').onkeydown = e => { if (e.key === 'Enter') { e.preventDefault(); addMinigame(); } };
+    document.getElementById('assetSaveBtn').onclick = saveAssets;
+
+    document.querySelector('.resource-details')?.addEventListener('toggle', async function() {
+      if (this.open && !document.getElementById('resourceDetailContent').innerHTML) {
+        try {
+          const res = await fetch(API_BASE + '/api/resources');
+          const data = await res.json();
+          let html = '';
+          if (data.props?.length) {
+            html += '<h4 style="margin: 0.5rem 0 0.25rem;">Prop 详情</h4><table class="resource-detail-table"><tr><th>ID</th><th>描述</th></tr>';
+            data.props.forEach(p => { html += `<tr><td><code>${p.id}</code></td><td>${(p.description || '-').slice(0, 80)}</td></tr>`; });
+            html += '</table>';
+          }
+          if (data.items?.length) {
+            html += '<h4 style="margin: 1rem 0 0.25rem;">Item 详情</h4><table class="resource-detail-table"><tr><th>ID</th><th>名称</th><th>类型</th><th>品质</th></tr>';
+            data.items.forEach(i => { html += `<tr><td><code>${i.id}</code></td><td>${i.name || '-'}</td><td>${i.item_type || '-'}</td><td>${i.quality || '-'}</td></tr>`; });
+            html += '</table>';
+          }
+          document.getElementById('resourceDetailContent').innerHTML = html || '<p style="color: var(--text-muted);">暂无详情</p>';
+        } catch (_) { document.getElementById('resourceDetailContent').innerHTML = '<p style="color: var(--error);">加载失败</p>'; }
+      }
+    });
+
+    loadAssets();
+
+    async function refreshTcpStatus() {
+      try {
+        const res = await fetch(API_BASE + '/api/tcp-status');
+        if (res.ok) {
+          const data = await res.json();
+          const el = document.getElementById('tcpStatus');
+          if (data.connected > 0) {
+            el.className = 'tcp-status connected';
+            el.querySelector('span:last-child').textContent = data.connected + ' 个客户端已连接 (Unreal/Python)';
+          } else {
+            el.className = 'tcp-status disconnected';
+            el.querySelector('span:last-child').textContent = '未检测到客户端';
+          }
+        }
+      } catch (_) {}
+    }
+    refreshTcpStatus();
+    setInterval(refreshTcpStatus, 2000);
+
+    async function refreshUeFeedback() {
+      try {
+        const res = await fetch(API_BASE + '/api/ue-messages?limit=50');
+        if (res.ok) {
+          const data = await res.json();
+          const list = data.messages || [];
+          const el = document.getElementById('ueFeedbackList');
+          const ph = document.getElementById('ueFeedbackPlaceholder');
+          if (!el) return;
+          el.querySelectorAll('.ue-feedback-item').forEach(n => n.remove());
+          if (list.length === 0) {
+            if (ph) ph.style.display = '';
+          } else {
+            if (ph) ph.style.display = 'none';
+            list.forEach((m, idx) => {
+              const div = document.createElement('div');
+              div.className = 'ue-feedback-item';
+              const mt = String(m.type || m.source || '').toLowerCase();
+              const isThinking = mt === 'thinking' || mt === 'think';
+              const isDialogue = mt === 'dialogue' || mt === 'dialog';
+              const isPersuade = mt === 'persuade';
+              const typeTag = m.type ? `<span style="color: var(--accent); margin-right: 0.5rem;">[${String(m.type).replace(/</g, '&lt;')}]</span>` : '';
+              const levelColor = m.level === 'error' ? 'var(--error)' : m.level === 'warn' ? '#d29922' : 'var(--text-muted)';
+              const levelTag = m.level ? `<span style="color:${levelColor};font-size:0.75rem;">${String(m.level).replace(/</g, '&lt;')}</span> ` : '';
+              const dataStr = m.data != null ? ' ' + (typeof m.data === 'object' ? JSON.stringify(m.data) : String(m.data)) : '';
+              let gotoHtml = '';
+              if (isThinking || isDialogue || isPersuade) {
+                const pageUrl = isThinking ? '/npc-think' : (isDialogue ? '/npc-dialogue' : '/npc-persuade');
+                const pageName = isThinking ? 'NPC 思考' : (isDialogue ? 'NPC 对话' : 'NPC 说服');
+                const payload = (m.data && typeof m.data === 'object' && (m.data.Type || m.data.Code))
+                  ? m.data
+                  : { Type: isThinking ? 'NPC_Think_Begin' : (isDialogue ? 'NPC_Dialogue_Request' : 'NPC_Persuade_Request'), Code: m.data || {} };
+                const pendId = 'ue_' + (m.ts || m.time || '') + '_' + idx;
+                window._uePending = window._uePending || {};
+                window._uePending[pendId] = { key: isThinking ? 'ue_pending_think' : (isDialogue ? 'ue_pending_dialogue' : 'ue_pending_persuade'), payload: payload };
+                gotoHtml = ` <a href="${pageUrl}" class="ue-goto-btn" data-pend-id="${pendId}">→ 去${pageName}页面</a>`;
+              }
+              div.innerHTML = `<span style="color: var(--text-muted);">${(m.time || '').replace(/</g, '&lt;')}</span> ${levelTag}${typeTag}${String(m.msg || '').replace(/</g, '&lt;')}${dataStr ? '<span style="color:var(--text-muted);">' + String(dataStr).replace(/</g, '&lt;') + '</span>' : ''}${gotoHtml}`;
+              div.style.cssText = 'padding: 0.25rem 0; border-bottom: 1px solid var(--border); word-break: break-all;';
+              el.appendChild(div);
+            });
+            el.querySelectorAll('.ue-goto-btn').forEach((a) => {
+              a.addEventListener('click', function(e) {
+                e.preventDefault();
+                const pendId = this.dataset.pendId;
+                if (pendId && window._uePending && window._uePending[pendId]) {
+                  try {
+                    const { key, payload } = window._uePending[pendId];
+                    sessionStorage.setItem(key, JSON.stringify(payload));
+                  } catch (_) {}
+                }
+                window.location.href = this.getAttribute('href');
+              });
+            });
+            el.scrollTop = el.scrollHeight;
+          }
+        }
+      } catch (_) {}
+    }
+    refreshUeFeedback();
+    setInterval(refreshUeFeedback, 2000);
+
+    document.getElementById('ueFeedbackClear')?.addEventListener('click', async () => {
+      try {
+        await fetch(API_BASE + '/api/ue-messages?limit=1&clear=true');
+        refreshUeFeedback();
+      } catch (_) {}
+    });
+
+    async function syncApiKeyToServer(key) {
+      if (key) try { await fetch(API_BASE + '/api/api-key', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ api_key: key }) }); } catch (_) {}
+    }
+
+    const savedKey = localStorage.getItem(STORAGE_KEY);
+    if (savedKey) {
+      document.getElementById('apiKey').value = savedKey;
+      document.getElementById('toggleSave').textContent = '清除已保存的 Key';
+      syncApiKeyToServer(savedKey);
+    }
+
+    document.getElementById('toggleSave').onclick = () => {
+      if (localStorage.getItem(STORAGE_KEY)) {
+        localStorage.removeItem(STORAGE_KEY);
+        document.getElementById('apiKey').value = '';
+        document.getElementById('toggleSave').textContent = '保存到本地';
+        syncApiKeyToServer('');
+      } else {
+        const key = document.getElementById('apiKey').value.trim();
+        if (key) {
+          localStorage.setItem(STORAGE_KEY, key);
+          document.getElementById('toggleSave').textContent = '清除已保存的 Key';
+          syncApiKeyToServer(key);
+        }
+      }
+    };
+
+    // 按阶段：复制/发送/下载按钮（从 data-type 对应的 textarea 读取内容）
+    window._sentStages = window._sentStages || new Set();
+    document.getElementById('outputCard').addEventListener('click', async (e) => {
+      const t = e.target.closest('[data-type]');
+      if (!t || !t.dataset.type) return;
+      const type = t.dataset.type;
+      const ta = document.querySelector('.stage-code[data-type="' + type + '"]');
+      const code = ta ? ta.value || '' : '';
+      if (t.classList.contains('stage-copy')) {
+        navigator.clipboard.writeText(code);
+        t.textContent = '已复制';
+        setTimeout(() => { t.textContent = '复制'; }, 1500);
+      } else if (t.classList.contains('stage-send')) {
+        if (type === 'StartGame' && !window._sentStages.has('InitMap')) {
+          alert('请先发送 InitMap');
+          return;
+        }
+        if (t.disabled) return;
+        t.disabled = true;
+        e.stopImmediatePropagation();
+        const origText = t.textContent;
+        try {
+          const res = await fetch(API_BASE + '/api/send-to-unreal', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ type: type, code: code }),
+          });
+          const data = await res.json();
+          if (res.ok && data.sent_to > 0) {
+            window._sentStages.add(type);
+            t.textContent = '已发送 (' + data.sent_to + ')';
+          } else if (res.ok && data.sent_to === 0) {
+            t.textContent = '未连接 Unreal';
+            t.style.background = 'var(--error)';
+          } else {
+            t.textContent = '发送失败';
+            t.style.background = 'var(--error)';
+          }
+          setTimeout(() => { t.textContent = origText; t.style.background = ''; t.disabled = false; }, 2000);
+        } catch (err) {
+          t.textContent = '发送失败';
+          t.style.background = 'var(--error)';
+          setTimeout(() => { t.textContent = origText; t.style.background = ''; t.disabled = false; }, 2000);
+        }
+      } else if (t.classList.contains('stage-download')) {
+        const a = document.createElement('a');
+        a.href = 'data:text/plain;charset=utf-8,' + encodeURIComponent(code);
+        a.download = type + '.lua';
+        a.click();
+      }
+    });
+
+    document.getElementById('generateBtn').onclick = async () => {
+      const apiKey = document.getElementById('apiKey').value.trim();
+      const story = document.getElementById('storyInput').value.trim();
+      if (apiKey) syncApiKeyToServer(apiKey);
+      if (!apiKey) {
+        document.getElementById('status').textContent = '请输入 API Key';
+        document.getElementById('status').className = 'status error';
+        return;
+      }
+      if (!story) {
+        document.getElementById('status').textContent = '请输入故事内容';
+        document.getElementById('status').className = 'status error';
+        return;
+      }
+
+      const btn = document.getElementById('generateBtn');
+      const btnText = document.getElementById('btnText');
+      const status = document.getElementById('status');
+      btn.disabled = true;
+      btn.innerHTML = '<span class="spinner"></span> 生成中...';
+      status.textContent = '正在调用多 Agent 流水线，请稍候...';
+      status.className = 'status';
+
+      try {
+        const initMapTa = document.querySelector('.stage-code[data-type="InitMap"]');
+        if (initMapTa && NPC_MAP.npcs?.length > 0) {
+          initMapTa.value = NPC_MAP.replaceNpcBlockInLua(initMapTa.value);
+        }
+        const initMapCode = initMapTa && initMapTa.value && initMapTa.value.trim() ? initMapTa.value.trim() : null;
+        const storyMode = document.getElementById('storyMode')?.value || 'expand';
+        const initEventTa = document.querySelector('.stage-code[data-type="InitEvent"]');
+        const previousInitEvent = (storyMode === 'continue' && initEventTa && initEventTa.value && initEventTa.value.trim()) ? initEventTa.value.trim() : null;
+        const res = await fetch(API_BASE + '/generate', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            story_input: story,
+            api_key: apiKey,
+            story_model: document.getElementById('storyModel').value,
+            planning_model: document.getElementById('planningModel').value,
+            coding_model: document.getElementById('codingModel').value,
+            story_mode: storyMode,
+            assets: assets,
+            encounter_locations: (NPC_MAP.encounters || []).length > 0
+              ? NPC_MAP.encounters.map(e => ({ x: Math.round(e.x), y: Math.round(e.y), z: e.z || 90 }))
+              : undefined,
+            init_map_code: initMapCode,
+            previous_init_event: previousInitEvent,
+          }),
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.detail || '生成失败');
+
+        document.getElementById('expandedStory').value = data.expanded_story || '';
+        document.getElementById('planOutput').value = data.plan_output || '';
+
+        window._generatedFiles = data.generated_files;
+        window._fullScript = data.full_script || '';
+        window._stages = data.stages || [];
+        window._sentStages = new Set();
+        const fullContent = document.getElementById('fullScriptContent');
+        fullContent.value = window._fullScript || '';
+
+        const SEND_TYPES = ['InitMap', 'InitEvent', 'StartGame'];
+        const typeLabel = { InitMap: '初始化地图', InitEvent: '初始化奇遇', StartGame: '开始游戏' };
+        ['InitMap', 'InitEvent', 'StartGame'].forEach(t => {
+          const ta = document.querySelector('.stage-code[data-type="' + t + '"]');
+          const s = (window._stages || []).find(x => x.Type === t);
+          if (ta) ta.value = s ? (s.Code || '') : ta.value;
+        });
+        const stagesListExtra = document.getElementById('stagesListExtra');
+        stagesListExtra.innerHTML = '';
+        (window._stages || []).filter(s => !SEND_TYPES.includes(s.Type)).forEach((s, i) => {
+          const div = document.createElement('div');
+          div.className = 'card';
+          div.style.marginBottom = '1rem';
+          div.innerHTML = `
+            <h3 style="font-size: 0.95rem; margin: 0 0 0.5rem 0;">${s.Type} ${typeLabel[s.Type] ? '(' + typeLabel[s.Type] + ')' : ''}</h3>
+            <div style="display: flex; gap: 0.5rem; margin-bottom: 0.5rem;">
+              <button type="button" class="btn btn-sm btn-primary stage-extra-copy" data-type="${s.Type}">复制</button>
+              <button type="button" class="btn btn-sm btn-primary stage-extra-download" data-type="${s.Type}">下载</button>
+            </div>
+            <textarea class="output-block large output-textarea stage-extra-code" data-type="${s.Type}" style="max-height: 280px;">${(s.Code || '').replace(/</g, '&lt;').replace(/>/g, '&gt;')}</textarea>
+          `;
+          const codeEl = div.querySelector('.stage-extra-code');
+          if (codeEl) codeEl.value = s.Code || '';
+          stagesListExtra.appendChild(div);
+        });
+        stagesListExtra.querySelectorAll('.stage-extra-copy').forEach(el => {
+          el.onclick = () => {
+            const ta = stagesListExtra.querySelector('.stage-extra-code[data-type="' + el.dataset.type + '"]');
+            if (ta) navigator.clipboard.writeText(ta.value);
+            el.textContent = '已复制';
+            setTimeout(() => el.textContent = '复制', 1500);
+          };
+        });
+        stagesListExtra.querySelectorAll('.stage-extra-download').forEach(el => {
+          el.onclick = () => {
+            const ta = stagesListExtra.querySelector('.stage-extra-code[data-type="' + el.dataset.type + '"]');
+            if (ta) {
+              const a = document.createElement('a');
+              a.href = 'data:text/plain;charset=utf-8,' + encodeURIComponent(ta.value);
+              a.download = el.dataset.type + '.lua';
+              a.click();
+            }
+          };
+        });
+
+        // 生成成功后自动切换到「按阶段」标签
+        document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+        document.querySelectorAll('.tab-content').forEach(c => (c.style.display = 'none'));
+        const stagesTab = document.querySelector('.tab[data-tab="stages"]');
+        const stagesPanel = document.getElementById('tab-stages');
+        if (stagesTab) stagesTab.classList.add('active');
+        if (stagesPanel) stagesPanel.style.display = 'block';
+
+        const fileList = document.getElementById('fileList');
+        fileList.innerHTML = '';
+        for (const name of Object.keys(data.generated_files)) {
+          const li = document.createElement('li');
+          li.className = 'file-item';
+          li.innerHTML = `
+            <span>${name}</span>
+            <div class="actions">
+              <button class="btn btn-sm btn-primary copy-btn" data-name="${name}">复制</button>
+              <button class="btn btn-sm btn-primary view-btn" data-name="${name}">查看</button>
+              <a class="btn btn-sm btn-primary download-btn" data-name="${name}">下载</a>
+            </div>
+          `;
+          fileList.appendChild(li);
+        }
+
+        fileList.querySelectorAll('.copy-btn').forEach(el => {
+          el.onclick = () => {
+            const code = window._generatedFiles[el.dataset.name] || '';
+            navigator.clipboard.writeText(code);
+            el.textContent = '已复制';
+            setTimeout(() => (el.textContent = '复制'), 1500);
+          };
+        });
+        fileList.querySelectorAll('.view-btn').forEach(el => {
+          el.onclick = () => {
+            const wrap = document.getElementById('fileContentWrap');
+            const content = document.getElementById('fileContent');
+            wrap.style.display = 'block';
+            content.value = window._generatedFiles[el.dataset.name] || '';
+            content.scrollIntoView?.({ behavior: 'smooth' });
+          };
+        });
+        fileList.querySelectorAll('.download-btn').forEach(el => {
+          el.onclick = () => {
+            const code = window._generatedFiles[el.dataset.name] || '';
+            const a = document.createElement('a');
+            a.href = 'data:text/plain;charset=utf-8,' + encodeURIComponent(code);
+            a.download = el.dataset.name;
+            a.click();
+          };
+        });
+
+        status.textContent = '生成完成';
+        status.className = 'status success';
+      } catch (e) {
+        status.textContent = '错误: ' + e.message;
+        status.className = 'status error';
+      } finally {
+        btn.disabled = false;
+        btn.innerHTML = '<span id="btnText">生成 LUA 脚本</span>';
+      }
+    };
+
+    document.querySelectorAll('.tab').forEach(tab => {
+      tab.onclick = () => {
+        document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+        document.querySelectorAll('.tab-content').forEach(c => (c.style.display = 'none'));
+        tab.classList.add('active');
+        const id = 'tab-' + tab.dataset.tab;
+        const el = document.getElementById(id);
+        if (el) el.style.display = 'block';
+      };
+    });
+
+    // 总拼装脚本：复制、下载（始终可用，从可编辑的 textarea 读取）
+    document.getElementById('copyFullScript').onclick = () => {
+      const txt = document.getElementById('fullScriptContent').value;
+      navigator.clipboard.writeText(txt);
+      const el = document.getElementById('copyFullScript');
+      el.textContent = '已复制';
+      setTimeout(() => (el.textContent = '复制完整脚本'), 1500);
+    };
+    document.getElementById('downloadFullScript').onclick = () => {
+      const txt = document.getElementById('fullScriptContent').value;
+      const a = document.createElement('a');
+      a.href = 'data:text/plain;charset=utf-8,' + encodeURIComponent(txt);
+      a.download = 'Full_Script.lua';
+      a.click();
+    };
+
+    // ============ NPC 地图可视化编辑器 ============
+    const NPC_MAP = {
+      npcs: [],
+      props: [],
+      encounters: [],  // 奇遇触发点 [{x,y,z,stepIndex}]，按步骤顺序
+      selected: { kind: 'npc', index: -1 },
+      drag: { kind: 'npc', index: -1 },
+      canvas: null,
+      ctx: null,
+      padding: 40,
+      worldMinX: 12000, worldMaxX: 25000, worldMinY: 12000, worldMaxY: 25000,
+      pointRadius: 8,
+      hitRadius: 12,
+
+      parseLua(luaCode) {
+        const npcs = [];
+        const patterns = [
+          /World\.SpawnNPC\s*\(\s*"([^"]+)"\s*,\s*"([^"]+)"\s*,\s*\{\s*X\s*=\s*([\d.]+)\s*,\s*Y\s*=\s*([\d.]+)\s*,\s*Z\s*=\s*([\d.]+)\s*\}\s*\)/g,
+          /World\.SpawnNPC\s*\(\s*"([^"]+)"\s*,\s*"([^"]+)"\s*,\s*\{X=([\d.]+),Y=([\d.]+),Z=([\d.]+)\}\s*\)/g,
+        ];
+        for (const re of patterns) {
+          let m;
+          re.lastIndex = 0;
+          while ((m = re.exec(luaCode)) !== null) {
+            npcs.push({ type: m[1], name: m[2], x: parseFloat(m[3]), y: parseFloat(m[4]), z: parseFloat(m[5]) });
+          }
+          if (npcs.length > 0) break;
+        }
+        return npcs;
+      },
+
+      parseProps(luaCode) {
+        const props = [];
+        const patterns = [
+          /Env\.AddProp\s*\(\s*\w+\s*,\s*"([^"]+)"\s*,\s*\{\s*X\s*=\s*([\d.]+)\s*,\s*Y\s*=\s*([\d.]+)\s*,\s*Z\s*=\s*([\d.]+)\s*\}\s*,/g,
+          /Env\.AddProp\s*\(\s*\w+\s*,\s*"([^"]+)"\s*,\s*\{X=([\d.]+),Y=([\d.]+),Z=([\d.]+)\}\s*,/g,
+          /Env\.AddProp\s*\(\s*\w+\s*,\s*"([^"]+)"\s*,\s*\{\s*X\s*=\s*([\d.]+)\s*,\s*Y\s*=\s*([\d.]+)\s*,\s*Z\s*=\s*([\d.]+)\s*\}\s*\)/g,
+        ];
+        for (const re of patterns) {
+          let m;
+          re.lastIndex = 0;
+          while ((m = re.exec(luaCode)) !== null) {
+            props.push({ id: m[1], x: parseFloat(m[2]), y: parseFloat(m[3]), z: parseFloat(m[4]) });
+          }
+          if (props.length > 0) break;
+        }
+        return props;
+      },
+
+      worldToCanvas(x, y) {
+        const c = this.canvas;
+        if (!c) return { px: 0, py: 0 };
+        const w = c.width - this.padding * 2, h = c.height - this.padding * 2;
+        const px = this.padding + ((x - this.worldMinX) / (this.worldMaxX - this.worldMinX)) * w;
+        const py = this.padding + (1 - (y - this.worldMinY) / (this.worldMaxY - this.worldMinY)) * h;
+        return { px, py };
+      },
+
+      canvasToWorld(px, py) {
+        const c = this.canvas;
+        if (!c) return { x: 0, y: 0 };
+        const w = c.width - this.padding * 2, h = c.height - this.padding * 2;
+        const x = this.worldMinX + ((px - this.padding) / w) * (this.worldMaxX - this.worldMinX);
+        const y = this.worldMinY + (1 - (py - this.padding) / h) * (this.worldMaxY - this.worldMinY);
+        return { x, y };
+      },
+
+      updateBounds() {
+        let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
+        this.npcs.forEach(n => { minX = Math.min(minX, n.x); maxX = Math.max(maxX, n.x); minY = Math.min(minY, n.y); maxY = Math.max(maxY, n.y); });
+        this.props.forEach(p => { minX = Math.min(minX, p.x); maxX = Math.max(maxX, p.x); minY = Math.min(minY, p.y); maxY = Math.max(maxY, p.y); });
+        this.encounters.forEach(e => { minX = Math.min(minX, e.x); maxX = Math.max(maxX, e.x); minY = Math.min(minY, e.y); maxY = Math.max(maxY, e.y); });
+        if (minX === Infinity) return;
+        const pad = 2000;
+        this.worldMinX = Math.floor(minX / 1000) * 1000 - pad;
+        this.worldMaxX = Math.ceil(maxX / 1000) * 1000 + pad;
+        this.worldMinY = Math.floor(minY / 1000) * 1000 - pad;
+        this.worldMaxY = Math.ceil(maxY / 1000) * 1000 + pad;
+      },
+
+      renderList() {
+        const el = document.getElementById('npcMapList');
+        const countEl = document.getElementById('npcMapCount');
+        if (countEl) countEl.textContent = '(' + this.npcs.length + ' NPC, ' + this.props.length + ' Prop, ' + this.encounters.length + ' 奇遇点)';
+        if (!el) return;
+        const sel = (k, i) => this.selected.kind === k && this.selected.index === i;
+        let html = this.encounters.map((e, i) =>
+          `<div class="npc-map-item" data-kind="encounter" data-idx="${i}" style="padding: 0.35rem 0.5rem; margin-bottom: 0.25rem; border-radius: 6px; cursor: pointer; background: ${sel('encounter', i) ? 'rgba(88,166,255,0.2)' : 'transparent'}; border: 1px solid ${sel('encounter', i) ? 'var(--accent)' : 'transparent'};">★ 奇遇点 #${i+1}<br><span style="color: var(--text-muted); font-size: 0.75rem;">X=${Math.round(e.x)} Y=${Math.round(e.y)}</span></div>`
+        ).join('');
+        html += this.npcs.map((n, i) =>
+          `<div class="npc-map-item" data-kind="npc" data-idx="${i}" style="padding: 0.35rem 0.5rem; margin-bottom: 0.25rem; border-radius: 6px; cursor: pointer; background: ${sel('npc', i) ? 'rgba(88,166,255,0.2)' : 'transparent'}; border: 1px solid ${sel('npc', i) ? 'var(--accent)' : 'transparent'};">[NPC] ${n.type} / ${n.name}<br><span style="color: var(--text-muted); font-size: 0.75rem;">X=${Math.round(n.x)} Y=${Math.round(n.y)}</span></div>`
+        ).join('');
+        html += this.props.map((p, i) =>
+          `<div class="npc-map-item" data-kind="prop" data-idx="${i}" style="padding: 0.35rem 0.5rem; margin-bottom: 0.25rem; border-radius: 6px; cursor: pointer; background: ${sel('prop', i) ? 'rgba(88,166,255,0.2)' : 'transparent'}; border: 1px solid ${sel('prop', i) ? 'var(--accent)' : 'transparent'};">[Prop] ${p.id}<br><span style="color: var(--text-muted); font-size: 0.75rem;">X=${Math.round(p.x)} Y=${Math.round(p.y)}</span></div>`
+        ).join('');
+        el.innerHTML = html;
+        el.querySelectorAll('.npc-map-item').forEach(d => {
+          d.onclick = () => { NPC_MAP.selected = { kind: d.dataset.kind, index: parseInt(d.dataset.idx, 10) }; NPC_MAP.render(); NPC_MAP.renderList(); };
+        });
+      },
+
+      render() {
+        const c = this.canvas, ctx = this.ctx;
+        if (!c || !ctx) return;
+        const w = c.width, h = c.height;
+        ctx.fillStyle = '#0d1117';
+        ctx.fillRect(0, 0, w, h);
+        ctx.strokeStyle = '#30363d';
+        ctx.lineWidth = 1;
+        ctx.strokeRect(this.padding, this.padding, w - this.padding * 2, h - this.padding * 2);
+        ctx.fillStyle = '#161b22';
+        ctx.fillRect(this.padding, this.padding, w - this.padding * 2, h - this.padding * 2);
+        ctx.font = '11px "JetBrains Mono", monospace';
+        ctx.fillStyle = '#8b949e';
+        ctx.fillText('X: ' + this.worldMinX + ' ~ ' + this.worldMaxX + '  |  Y: ' + this.worldMinY + ' ~ ' + this.worldMaxY, this.padding, h - 8);
+
+        this.props.forEach((p, i) => {
+          const { px, py } = this.worldToCanvas(p.x, p.y);
+          const sel = this.selected.kind === 'prop' && this.selected.index === i;
+          ctx.beginPath();
+          ctx.moveTo(px, py - this.pointRadius);
+          ctx.lineTo(px + this.pointRadius, py);
+          ctx.lineTo(px, py + this.pointRadius);
+          ctx.lineTo(px - this.pointRadius, py);
+          ctx.closePath();
+          ctx.fillStyle = sel ? '#58a6ff' : '#d29922';
+          ctx.fill();
+          ctx.strokeStyle = sel ? '#79b8ff' : '#e3b341';
+          ctx.lineWidth = sel ? 3 : 1;
+          ctx.stroke();
+          ctx.fillStyle = '#e6edf3';
+          ctx.textAlign = 'center';
+          ctx.fillText(p.id.replace('Prop_', ''), px, py - this.pointRadius - 4);
+        });
+        this.npcs.forEach((n, i) => {
+          const { px, py } = this.worldToCanvas(n.x, n.y);
+          const sel = this.selected.kind === 'npc' && this.selected.index === i;
+          ctx.beginPath();
+          ctx.arc(px, py, this.pointRadius, 0, Math.PI * 2);
+          ctx.fillStyle = sel ? '#58a6ff' : '#3fb950';
+          ctx.fill();
+          ctx.strokeStyle = sel ? '#79b8ff' : '#58a6ff';
+          ctx.lineWidth = sel ? 3 : 1;
+          ctx.stroke();
+          ctx.fillStyle = '#e6edf3';
+          ctx.textAlign = 'center';
+          ctx.fillText(n.type.split('_')[0] || n.name, px, py - this.pointRadius - 4);
+        });
+        this.encounters.forEach((e, i) => {
+          const { px, py } = this.worldToCanvas(e.x, e.y);
+          const sel = this.selected.kind === 'encounter' && this.selected.index === i;
+          const r = this.pointRadius + 2;
+          ctx.beginPath();
+          for (let k = 0; k < 5; k++) {
+            const a = (k * 4 * Math.PI / 5) - Math.PI / 2;
+            const x = px + r * Math.cos(a), y = py + r * Math.sin(a);
+            if (k === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+          }
+          ctx.closePath();
+          ctx.fillStyle = sel ? '#58a6ff' : '#f0883e';
+          ctx.fill();
+          ctx.strokeStyle = sel ? '#79b8ff' : '#ffa657';
+          ctx.lineWidth = sel ? 3 : 1;
+          ctx.stroke();
+          ctx.fillStyle = '#e6edf3';
+          ctx.textAlign = 'center';
+          ctx.fillText('★' + (i + 1), px, py + 4);
+        });
+      },
+
+      hitTest(px, py) {
+        for (let i = this.encounters.length - 1; i >= 0; i--) {
+          const { px: cx, py: cy } = this.worldToCanvas(this.encounters[i].x, this.encounters[i].y);
+          if (Math.hypot(px - cx, py - cy) <= this.hitRadius) return { kind: 'encounter', index: i };
+        }
+        for (let i = this.props.length - 1; i >= 0; i--) {
+          const { px: cx, py: cy } = this.worldToCanvas(this.props[i].x, this.props[i].y);
+          if (Math.hypot(px - cx, py - cy) <= this.hitRadius) return { kind: 'prop', index: i };
+        }
+        for (let i = this.npcs.length - 1; i >= 0; i--) {
+          const { px: cx, py: cy } = this.worldToCanvas(this.npcs[i].x, this.npcs[i].y);
+          if (Math.hypot(px - cx, py - cy) <= this.hitRadius) return { kind: 'npc', index: i };
+        }
+        return null;
+      },
+
+      toLuaBlock() {
+        const defaultZ = 90;
+        return this.npcs.map(n => 
+          `World.SpawnNPC("${n.type}","${n.name}",{X=${Math.round(n.x)},Y=${Math.round(n.y)},Z=${n.z || defaultZ}})`
+        ).join('\n');
+      },
+
+      replaceNpcBlockInLua(luaCode) {
+        const block = this.toLuaBlock();
+        const npcBlockRe = /(-- =+ 放置路人NPC[^\n]*\n)?(World\.SpawnNPC\([^)]+\)\s*\n?)+/;
+        const newBlock = '-- ============ 放置路人NPC（间距加大，避免扎堆）============\n' + block + '\n';
+        if (npcBlockRe.test(luaCode)) {
+          return luaCode.replace(npcBlockRe, newBlock);
+        }
+        const insertAfter = /Env\.BuildAsync\s*\([^)]+\)/;
+        if (insertAfter.test(luaCode)) {
+          return luaCode.replace(insertAfter, match => match + '\n\n' + newBlock);
+        }
+        return luaCode + '\n\n' + newBlock;
+      }
+    };
+
+    function initNpcMap() {
+      const canvas = document.getElementById('npcMapCanvas');
+      const panel = document.getElementById('tab-npcmap');
+      if (!canvas || !panel) return;
+      NPC_MAP.canvas = canvas;
+      NPC_MAP.ctx = canvas.getContext('2d');
+      let code = '';
+      const ta = document.querySelector('.stage-code[data-type="InitMap"]');
+      if (ta) code = ta.value || '';
+      if (!code || (NPC_MAP.parseLua(code).length === 0 && NPC_MAP.parseProps(code).length === 0)) {
+        const pasteEl = document.getElementById('npcMapPasteArea');
+        if (pasteEl && pasteEl.value.trim()) code = pasteEl.value;
+      }
+      NPC_MAP.npcs = NPC_MAP.parseLua(code);
+      NPC_MAP.props = NPC_MAP.parseProps(code);
+      NPC_MAP.selected = { kind: 'npc', index: -1 };
+      NPC_MAP.drag = { kind: 'npc', index: -1 };
+      if (NPC_MAP.npcs.length > 0 || NPC_MAP.props.length > 0) NPC_MAP.updateBounds();
+      else { NPC_MAP.worldMinX = 12000; NPC_MAP.worldMaxX = 25000; NPC_MAP.worldMinY = 12000; NPC_MAP.worldMaxY = 25000; }
+      const rect = canvas.getBoundingClientRect();
+      if (rect.width > 0 && rect.height > 0) {
+        canvas.width = rect.width;
+        canvas.height = rect.height;
+      } else {
+        canvas.width = 600;
+        canvas.height = 500;
+      }
+      NPC_MAP.render();
+      NPC_MAP.renderList();
+      const countEl = document.getElementById('npcMapCount');
+      if (countEl) countEl.textContent = '(' + NPC_MAP.npcs.length + ' NPC, ' + NPC_MAP.props.length + ' Prop, ' + NPC_MAP.encounters.length + ' 奇遇点)';
+      const hintEl = document.getElementById('npcMapHint');
+      if (hintEl) hintEl.textContent = '拖拽移动 · Alt/Ctrl+点击添加 NPC · Shift+点击添加奇遇点';
+    }
+
+    document.getElementById('npcMapLoad')?.addEventListener('click', initNpcMap);
+    document.getElementById('npcMapLoadPreset')?.addEventListener('click', async () => {
+      try {
+        const res = await fetch(API_BASE + '/api/preset-map');
+        const data = await res.json();
+        const code = data.code || '';
+        const ta = document.querySelector('.stage-code[data-type="InitMap"]');
+        if (ta) ta.value = code;
+        NPC_MAP.encounters = [];
+        initNpcMap();
+      } catch (e) { alert('加载预设地图失败: ' + e.message); }
+    });
+    document.getElementById('npcMapAddEncounter')?.addEventListener('click', () => {
+      const cx = (NPC_MAP.worldMinX + NPC_MAP.worldMaxX) / 2;
+      const cy = (NPC_MAP.worldMinY + NPC_MAP.worldMaxY) / 2;
+      NPC_MAP.encounters.push({ x: cx, y: cy, z: 90, stepIndex: NPC_MAP.encounters.length });
+      if (NPC_MAP.encounters.length > 1) NPC_MAP.updateBounds();
+      NPC_MAP.render();
+      NPC_MAP.renderList();
+    });
+    document.getElementById('npcMapLoadPaste')?.addEventListener('click', () => {
+      const pasteEl = document.getElementById('npcMapPasteArea');
+      const code = pasteEl ? pasteEl.value || '' : '';
+      NPC_MAP.npcs = NPC_MAP.parseLua(code);
+      NPC_MAP.props = NPC_MAP.parseProps(code);
+      NPC_MAP.selected = { kind: 'npc', index: -1 };
+      NPC_MAP.drag = { kind: 'npc', index: -1 };
+      if (NPC_MAP.npcs.length > 0 || NPC_MAP.props.length > 0 || NPC_MAP.encounters.length > 0) NPC_MAP.updateBounds();
+      else { NPC_MAP.worldMinX = 12000; NPC_MAP.worldMaxX = 25000; NPC_MAP.worldMinY = 12000; NPC_MAP.worldMaxY = 25000; }
+      NPC_MAP.render();
+      NPC_MAP.renderList();
+    });
+    document.getElementById('npcMapApply')?.addEventListener('click', () => {
+      const ta = document.querySelector('.stage-code[data-type="InitMap"]');
+      if (!ta) { alert('未找到 InitMap 编辑区'); return; }
+      const before = NPC_MAP.parseLua(ta.value);
+      const hasNpc = before.length > 0 || NPC_MAP.npcs.length > 0;
+      let newCode;
+      if (NPC_MAP.npcs.length === 0) {
+        newCode = ta.value.replace(/(-- =+ 放置路人NPC[^\n]*\n)?(World\.SpawnNPC\([^)]+\)\s*\n?)+/g, '');
+      } else {
+        newCode = NPC_MAP.replaceNpcBlockInLua(ta.value);
+      }
+      ta.value = newCode;
+      document.getElementById('npcMapApply').textContent = '已应用';
+      setTimeout(() => document.getElementById('npcMapApply').textContent = '应用回 InitMap', 1500);
+    });
+    document.getElementById('npcMapAdd')?.addEventListener('click', () => {
+      const type = (assets.npcs && assets.npcs[0]) || 'Default';
+      const name = 'npc_' + (NPC_MAP.npcs.length + 1);
+      const cx = (NPC_MAP.worldMinX + NPC_MAP.worldMaxX) / 2;
+      const cy = (NPC_MAP.worldMinY + NPC_MAP.worldMaxY) / 2;
+      NPC_MAP.npcs.push({ type, name, x: cx, y: cy, z: 90 });
+      NPC_MAP.updateBounds();
+      NPC_MAP.render();
+      NPC_MAP.renderList();
+    });
+    document.getElementById('npcMapDelete')?.addEventListener('click', () => {
+      const s = NPC_MAP.selected;
+      if (s.index >= 0) {
+        if (s.kind === 'npc') NPC_MAP.npcs.splice(s.index, 1);
+        else if (s.kind === 'prop') NPC_MAP.props.splice(s.index, 1);
+        else if (s.kind === 'encounter') NPC_MAP.encounters.splice(s.index, 1);
+        NPC_MAP.selected = { kind: 'npc', index: -1 };
+        NPC_MAP.updateBounds();
+        NPC_MAP.render();
+        NPC_MAP.renderList();
+      } else alert('请先在地图上点击选中一个 NPC、Prop 或奇遇点');
+    });
+
+    function getCanvasCoords(e) {
+      const canvas = NPC_MAP.canvas;
+      if (!canvas) return { px: 0, py: 0 };
+      const rect = canvas.getBoundingClientRect();
+      const scaleX = canvas.width / rect.width, scaleY = canvas.height / rect.height;
+      return { px: (e.clientX - rect.left) * scaleX, py: (e.clientY - rect.top) * scaleY };
+    }
+    document.getElementById('npcMapCanvas')?.addEventListener('mousedown', e => {
+      const canvas = NPC_MAP.canvas;
+      if (!canvas) return;
+      const { px, py } = getCanvasCoords(e);
+      const hit = NPC_MAP.hitTest(px, py);
+      if (hit) {
+        NPC_MAP.drag = { kind: hit.kind, index: hit.index };
+        NPC_MAP.selected = { kind: hit.kind, index: hit.index };
+      } else {
+        if (e.shiftKey) {
+          const { x, y } = NPC_MAP.canvasToWorld(px, py);
+          NPC_MAP.encounters.push({ x, y, z: 90, stepIndex: NPC_MAP.encounters.length });
+          NPC_MAP.updateBounds();
+        } else if (e.altKey || e.ctrlKey) {
+          const { x, y } = NPC_MAP.canvasToWorld(px, py);
+          const type = (assets.npcs && assets.npcs[0]) || 'Default';
+          NPC_MAP.npcs.push({ type, name: 'npc_' + (NPC_MAP.npcs.length + 1), x: x, y: y, z: 90 });
+          NPC_MAP.updateBounds();
+        } else {
+          NPC_MAP.selected = { kind: 'npc', index: -1 };
+        }
+        NPC_MAP.drag = { kind: 'npc', index: -1 };
+      }
+      NPC_MAP.render();
+      NPC_MAP.renderList();
+    });
+    document.addEventListener('mousemove', e => {
+      const d = NPC_MAP.drag;
+      if (d.index < 0) return;
+      const canvas = NPC_MAP.canvas;
+      if (!canvas) return;
+      const { px, py } = getCanvasCoords(e);
+      const { x, y } = NPC_MAP.canvasToWorld(px, py);
+      if (d.kind === 'npc') { NPC_MAP.npcs[d.index].x = x; NPC_MAP.npcs[d.index].y = y; }
+      else if (d.kind === 'prop') { NPC_MAP.props[d.index].x = x; NPC_MAP.props[d.index].y = y; }
+      else if (d.kind === 'encounter') { NPC_MAP.encounters[d.index].x = x; NPC_MAP.encounters[d.index].y = y; }
+      NPC_MAP.render();
+      NPC_MAP.renderList();
+    });
+    document.addEventListener('mouseup', () => {
+      if (NPC_MAP.drag.index >= 0) NPC_MAP.renderList();
+      NPC_MAP.drag = { kind: 'npc', index: -1 };
+    });
+
+    document.querySelector('.tab[data-tab="npcmap"]')?.addEventListener('click', () => {
+      setTimeout(initNpcMap, 50);
+    });
+
+  </script>
+</body>
+</html>
